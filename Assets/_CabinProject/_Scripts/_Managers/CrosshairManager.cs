@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace CabinProject
 {
@@ -7,9 +6,25 @@ namespace CabinProject
     {
         public static CrosshairManager Instance { get; private set; }
 
+        [Header("Attack Settings")]
         [SerializeField] private float _interactRange = 3.5f;
+        [SerializeField] private float _attackCooldown = 0.2f;
         
-        private bool _isSubscribed;
+        [Header("Destruction Settings")]
+        [SerializeField] private float _excavationRadius = 0.5f;
+        public float ExcavationRadius => _excavationRadius;
+        
+        [SerializeField] private int _gridResolution = 32;
+        public int GridResolution => _gridResolution;
+        
+        [SerializeField] private float _isoValue = 0.5f;
+        public float IsoValue => _isoValue;
+        
+        [SerializeField] private ComputeShader _computeShader;
+        public ComputeShader ComputeShader => _computeShader;
+
+        
+        private Timer _attackTimer;
 
         private void Awake()
         {
@@ -18,17 +33,28 @@ namespace CabinProject
 
         private void Start()
         {
-            TrySubscribeToInput();
+            _attackTimer = new Timer(_attackCooldown);
+            _attackTimer.RemainingSeconds = 0f;
         }
 
-        private void OnEnable()
+        private void Update()
         {
-            TrySubscribeToInput();
-        }
+            if (_attackTimer == null)
+            {
+                return;
+            }
 
-        private void OnDisable()
-        {
-            UnsubscribeFromInput();
+            _attackTimer.Tick(Time.deltaTime);
+
+            if (GameInput.Instance == null || !GameInput.Instance.IsHoldingDownAttack)
+            {
+                return;
+            }
+
+            if (_attackTimer.RemainingSeconds <= 0f)
+            {
+                HandleAttack();
+            }
         }
 
         private void OnDestroy()
@@ -37,16 +63,20 @@ namespace CabinProject
             {
                 Instance = null;
             }
-
-            UnsubscribeFromInput();
         }
 
-        private void HandleAttack(object sender, InputAction.CallbackContext context)
+        private void HandleAttack()
         {
+            if (_attackTimer != null && _attackTimer.RemainingSeconds > 0f)
+            {
+                return;
+            }
+
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
             {
                 Debug.LogWarning("CrosshairManager could not fire attack raycast because no Main Camera was found.");
+                _attackTimer?.Reset();
                 return;
             }
 
@@ -59,36 +89,19 @@ namespace CabinProject
                 {
                     voxelTarget.Excavate(hit.point);
                     Debug.Log($"Excavated {voxelTarget.name} at {hit.point}.");
-                    return;
                 }
-
-                Debug.Log($"Attack raycast hit {hit.collider.gameObject.name} at distance {hit.distance:F2}.");
-                return;
+                else
+                {
+                    Debug.Log($"Attack raycast hit {hit.collider.gameObject.name} at distance {hit.distance:F2}.");
+                }
             }
-
-            Debug.Log("Attack raycast did not hit anything.");
-        }
-
-        private void TrySubscribeToInput()
-        {
-            if (_isSubscribed || GameInput.Instance == null)
+            else
             {
-                return;
+                Debug.Log("Attack raycast did not hit anything.");
             }
 
-            GameInput.Instance.OnAttack += HandleAttack;
-            _isSubscribed = true;
+            _attackTimer?.Reset();
         }
 
-        private void UnsubscribeFromInput()
-        {
-            if (!_isSubscribed || GameInput.Instance == null)
-            {
-                return;
-            }
-
-            GameInput.Instance.OnAttack -= HandleAttack;
-            _isSubscribed = false;
-        }
     }
 }

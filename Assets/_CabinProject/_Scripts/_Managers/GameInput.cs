@@ -22,6 +22,7 @@ namespace CabinProject
         public bool JumpPressed { get; private set; }
         public bool IsHoldingDownJump { get; private set; }
         public bool IsHoldingDownSprint { get; private set; }
+        public bool IsHoldingDownAttack { get; private set; }
 
         private void Awake()
         {
@@ -41,6 +42,7 @@ namespace CabinProject
             _playerInput.Player.Sprint.started += PlayerInput_Sprint;
             _playerInput.Player.Sprint.canceled += PlayerInput_Sprint;
             _playerInput.Player.Attack.started += PlayerInput_OnAttack;
+            _playerInput.Player.Attack.canceled += PlayerInput_OnAttack;
         }
 
         public void OnDestroy()
@@ -66,6 +68,7 @@ namespace CabinProject
             _playerInput.Player.Sprint.started -= PlayerInput_Sprint;
             _playerInput.Player.Sprint.canceled -= PlayerInput_Sprint;
             _playerInput.Player.Attack.started -= PlayerInput_OnAttack;
+            _playerInput.Player.Attack.canceled -= PlayerInput_OnAttack;
 
             _playerInput.Disable();
             _playerInput.Dispose();
@@ -73,6 +76,7 @@ namespace CabinProject
 
         private void PlayerInput_OnAttack(InputAction.CallbackContext context)
         {
+            IsHoldingDownAttack = context.ReadValueAsButton();
             OnAttack?.Invoke(this, context);
         }
 

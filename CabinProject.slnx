@@ -6,10 +6,10 @@
   <Project Path="SingularityGroup.HotReload.Runtime.csproj" />
   <Project Path="Lofelt.NiceVibrations.csproj" />
   <Project Path="FMODUnityResonanceEditor.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="FMODUnityEditor.csproj" />
   <Project Path="Assembly-CSharp-firstpass.csproj" />
   <Project Path="FMODUnity.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="SingularityGroup.HotReload.Runtime.Public.csproj" />
   <Project Path="Lofelt.NiceVibrations.Demo.csproj" />
   <Project Path="Lofelt.NiceVibrations.Editor.csproj" />
