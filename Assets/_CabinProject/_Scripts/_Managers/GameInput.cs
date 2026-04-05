@@ -11,6 +11,7 @@ namespace CabinProject
         public event EventHandler<InputAction.CallbackContext> OnMove;
         public event EventHandler<InputAction.CallbackContext> OnLook;
         public event EventHandler<InputAction.CallbackContext> OnJump;
+        public event EventHandler<InputAction.CallbackContext> OnAttack;
         public event EventHandler<InputAction.CallbackContext> OnSprintStarted;
         public event EventHandler<InputAction.CallbackContext> OnSprintEnded;
 
@@ -39,6 +40,7 @@ namespace CabinProject
             _playerInput.Player.Jump.canceled += PlayerInput_OnJump;
             _playerInput.Player.Sprint.started += PlayerInput_Sprint;
             _playerInput.Player.Sprint.canceled += PlayerInput_Sprint;
+            _playerInput.Player.Attack.started += PlayerInput_OnAttack;
         }
 
         public void OnDestroy()
@@ -63,9 +65,15 @@ namespace CabinProject
             _playerInput.Player.Jump.canceled -= PlayerInput_OnJump;
             _playerInput.Player.Sprint.started -= PlayerInput_Sprint;
             _playerInput.Player.Sprint.canceled -= PlayerInput_Sprint;
+            _playerInput.Player.Attack.started -= PlayerInput_OnAttack;
 
             _playerInput.Disable();
             _playerInput.Dispose();
+        }
+
+        private void PlayerInput_OnAttack(InputAction.CallbackContext context)
+        {
+            OnAttack?.Invoke(this, context);
         }
 
         private void PlayerInput_OnMove(InputAction.CallbackContext context)

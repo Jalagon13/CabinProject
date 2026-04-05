@@ -1411,6 +1411,8 @@ GameObject:
   - component: {fileID: 1946351265}
   - component: {fileID: 1946351266}
   - component: {fileID: 1946351267}
+  - component: {fileID: 1946351269}
+  - component: {fileID: 1946351268}
   m_Layer: 0
   m_Name: LOCAL_MANAGERS
   m_TagString: Untagged
@@ -1457,6 +1459,51 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96d141b46c8f7404eac406d05d78ddc3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.AudioManager
+--- !u!114 &1946351268
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1946351264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a178c55a545ab49ffb9f90493f5c2b0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CabinProject.CrosshairManager
+--- !u!114 &1946351269
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1946351264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fbce8167dcb443ae849362856d106b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CabinProject.FMODEvents
+  <JumpSFX>k__BackingField:
+    Guid:
+      Data1: 0
+      Data2: 0
+      Data3: 0
+      Data4: 0
+    Path: 
+  <LandingSFX>k__BackingField:
+    Guid:
+      Data1: 0
+      Data2: 0
+      Data3: 0
+      Data4: 0
+    Path: 
+  <StepsSFX>k__BackingField:
+    Guid:
+      Data1: 0
+      Data2: 0
+      Data3: 0
+      Data4: 0
+    Path: 
 --- !u!1 &2082509066
 GameObject:
   m_ObjectHideFlags: 0
