@@ -1058,8 +1058,9 @@ GameObject:
   - component: {fileID: 1600222261}
   - component: {fileID: 1600222260}
   - component: {fileID: 1600222259}
+  - component: {fileID: 1600222265}
   m_Layer: 0
-  m_Name: Cube
+  m_Name: TestBoulder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1400,6 +1401,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1600222265
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1600222258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3e52377163d46989c52c89727a9b4f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CabinProject.MarchingCubesVoxelDestruction
+  _gridResolution: 32
+  _excavationRadius: 0.2
+  _isoValue: 0.5
+  _computeShader: {fileID: 7200000, guid: 537b8f041b0242dfb1db5f5d0169a415, type: 3}
 --- !u!1 &1946351264
 GameObject:
   m_ObjectHideFlags: 0
@@ -1471,6 +1488,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a178c55a545ab49ffb9f90493f5c2b0f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.CrosshairManager
+  _interactRange: 3.5
 --- !u!114 &1946351269
 MonoBehaviour:
   m_ObjectHideFlags: 0
