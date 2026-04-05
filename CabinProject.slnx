@@ -4,4 +4,5 @@
   <Project Path="SingularityGroup.HotReload.Runtime.csproj" />
   <Project Path="SingularityGroup.HotReload.Runtime.Public.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Sirenix.OdinInspector.Modules.UnityMathematics.csproj" />
 </Solution>
