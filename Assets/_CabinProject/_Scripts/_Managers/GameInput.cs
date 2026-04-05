@@ -16,6 +16,9 @@ namespace CabinProject
 
         private PlayerInput _playerInput;
 
+        public Vector2 MoveInput { get; private set; }
+        public Vector2 LookInput { get; private set; }
+        public bool JumpPressed { get; private set; }
         public bool IsHoldingDownJump { get; private set; }
         public bool IsHoldingDownSprint { get; private set; }
 
@@ -40,28 +43,77 @@ namespace CabinProject
 
         public void OnDestroy()
         {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+
+            if (_playerInput == null)
+            {
+                return;
+            }
+
+            _playerInput.Player.Move.started -= PlayerInput_OnMove;
+            _playerInput.Player.Move.performed -= PlayerInput_OnMove;
+            _playerInput.Player.Move.canceled -= PlayerInput_OnMove;
+            _playerInput.Player.Look.started -= PlayerInput_OnLook;
+            _playerInput.Player.Look.performed -= PlayerInput_OnLook;
+            _playerInput.Player.Look.canceled -= PlayerInput_OnLook;
+            _playerInput.Player.Jump.started -= PlayerInput_OnJump;
+            _playerInput.Player.Jump.canceled -= PlayerInput_OnJump;
+            _playerInput.Player.Sprint.started -= PlayerInput_Sprint;
+            _playerInput.Player.Sprint.canceled -= PlayerInput_Sprint;
+
             _playerInput.Disable();
             _playerInput.Dispose();
         }
 
         private void PlayerInput_OnMove(InputAction.CallbackContext context)
         {
-            throw new NotImplementedException();
+            MoveInput = context.ReadValue<Vector2>();
+            OnMove?.Invoke(this, context);
         }
 
         private void PlayerInput_OnLook(InputAction.CallbackContext context)
         {
-            throw new NotImplementedException();
+            LookInput = context.ReadValue<Vector2>();
+            OnLook?.Invoke(this, context);
         }
 
         private void PlayerInput_OnJump(InputAction.CallbackContext context)
         {
-            throw new NotImplementedException();
+            if (context.started)
+            {
+                JumpPressed = true;
+            }
+
+            IsHoldingDownJump = context.ReadValueAsButton();
+            OnJump?.Invoke(this, context);
         }
 
         private void PlayerInput_Sprint(InputAction.CallbackContext context)
         {
-            throw new NotImplementedException();
+            IsHoldingDownSprint = context.ReadValueAsButton();
+
+            if (context.started)
+            {
+                OnSprintStarted?.Invoke(this, context);
+            }
+            else if (context.canceled)
+            {
+                OnSprintEnded?.Invoke(this, context);
+            }
+        }
+
+        public bool ConsumeJumpPressed()
+        {
+            if (!JumpPressed)
+            {
+                return false;
+            }
+
+            JumpPressed = false;
+            return true;
         }
     }
 }
