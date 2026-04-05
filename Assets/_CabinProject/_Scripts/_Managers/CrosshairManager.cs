@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 namespace CabinProject
 {
@@ -9,6 +10,7 @@ namespace CabinProject
         [Header("Attack Settings")]
         [SerializeField] private float _interactRange = 3.5f;
         [SerializeField] private float _attackCooldown = 0.2f;
+        [SerializeField] private string _collectableLayerName = "Collectable";
         
         [Header("Destruction Settings")]
         [SerializeField] private float _excavationRadius = 0.5f;
@@ -82,26 +84,67 @@ namespace CabinProject
 
             Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
 
-            if (Physics.Raycast(ray, out RaycastHit hit, _interactRange))
+            RaycastHit[] hits = Physics.RaycastAll(ray, _interactRange, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+
+            if (hits.Length > 0)
             {
-                MarchingCubesVoxelDestruction voxelTarget = hit.collider.GetComponentInParent<MarchingCubesVoxelDestruction>();
-                if (voxelTarget != null)
+                foreach (RaycastHit hit in hits)
                 {
-                    voxelTarget.Excavate(hit.point);
-                    Debug.Log($"Excavated {voxelTarget.name} at {hit.point}.");
+                    if (TryCollect(hit))
+                    {
+                        _attackTimer?.Reset();
+                        return;
+                    }
+
+                    MarchingCubesVoxelDestruction voxelTarget = hit.collider.GetComponentInParent<MarchingCubesVoxelDestruction>();
+                    if (voxelTarget != null)
+                    {
+                        voxelTarget.Excavate(hit.point);
+                        // Debug.Log($"Excavated {voxelTarget.name} at {hit.point}.");
+                        _attackTimer?.Reset();
+                        return;
+                    }
                 }
-                else
-                {
-                    Debug.Log($"Attack raycast hit {hit.collider.gameObject.name} at distance {hit.distance:F2}.");
-                }
+
+                // Debug.Log($"Attack raycast hit {hits[0].collider.gameObject.name} at distance {hits[0].distance:F2}.");
             }
             else
             {
-                Debug.Log("Attack raycast did not hit anything.");
+                // Debug.Log("Attack raycast did not hit anything.");
             }
 
             _attackTimer?.Reset();
         }
 
+        private bool TryCollect(RaycastHit hit)
+        {
+            if (!hit.collider.gameObject.layer.Equals(LayerMask.NameToLayer(_collectableLayerName)))
+            {
+                return false;
+            }
+
+            Collectable collectable = hit.collider.GetComponentInParent<Collectable>();
+            if (collectable == null)
+            {
+                return false;
+            }
+
+            if (!collectable.CanBeCollected)
+            {
+                Debug.LogWarning($"Collectable on {collectable.name} is missing data.");
+                return true;
+            }
+
+            if (!InventoryManager.Instance.TryAddCollectable(collectable.Data))
+            {
+                Debug.Log($"Inventory full. Could not collect {collectable.Data.ItemName}.");
+                return true;
+            }
+
+            Debug.Log($"Collected {collectable.Data.ItemName}.");
+            Destroy(collectable.gameObject);
+            return true;
+        }
     }
 }
