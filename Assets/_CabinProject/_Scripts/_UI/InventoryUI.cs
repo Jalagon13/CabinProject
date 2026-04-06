@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -10,6 +9,7 @@ namespace CabinProject
     public class InventoryUI : MonoBehaviour
     {
         [SerializeField] private ItemTextUI _itemTextUIPrefab;
+        [SerializeField] private ShippingBinUI _shippingBinUI;
         [SerializeField] private RectTransform _inventoryMenuRt;
         [SerializeField] private RectTransform _inventoryItemTextHolder;
         [SerializeField] private RectTransform _inventoryFullRt;
@@ -26,20 +26,29 @@ namespace CabinProject
             _inventoryFullRt.gameObject.SetActive(false);
             InventoryManager.Instance.OnItemCollected += CheckIfInventoryFull;
             InventoryManager.Instance.OnItemCollected += UpdateUI;
+            InventoryManager.Instance.OnInventoryCleared += UpdateUI;
             GameInput.Instance.OnInventoryToggle += OnInventoryToggle;
 
         }
         
         private void OnDestroy()
         {
-            InventoryManager.Instance.OnItemCollected -= CheckIfInventoryFull;
-            InventoryManager.Instance.OnItemCollected -= UpdateUI;
-            GameInput.Instance.OnInventoryToggle -= OnInventoryToggle;
+            if (InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.OnItemCollected -= CheckIfInventoryFull;
+                InventoryManager.Instance.OnItemCollected -= UpdateUI;
+                InventoryManager.Instance.OnInventoryCleared -= UpdateUI;
+            }
+
+            if (GameInput.Instance != null)
+            {
+                GameInput.Instance.OnInventoryToggle -= OnInventoryToggle;
+            }
         }
 
         private void OnInventoryToggle(object sender, InputAction.CallbackContext e)
         {
-            if (ShippingBinUI.Instance != null && ShippingBinUI.Instance.ConsumeInventoryToggleBlock())
+            if (_shippingBinUI != null && _shippingBinUI.ConsumeInventoryToggleBlock())
             {
                 return;
             }
@@ -93,6 +102,11 @@ namespace CabinProject
             }
 
             _inventoryCapacityText.text = $"Total: {InventoryManager.Instance.Count} / {InventoryManager.Instance.Capacity}";
+        }
+
+        private void UpdateUI()
+        {
+            UpdateUI(null);
         }
 
         private void CheckIfInventoryFull(CollectableData data)

@@ -9,6 +9,7 @@ namespace CabinProject
         public static InventoryManager Instance { get; private set; }
         
         public event Action<CollectableData> OnItemCollected;
+        public event Action OnInventoryCleared;
 
         [Header("Inventory Settings")]
         [SerializeField] private int _capacity = 3;
@@ -51,6 +52,13 @@ namespace CabinProject
 
             Debug.Log($"Adding {collectableData.ItemName} to inventory. Capacity remaining: {RemainingCapacity} / {_capacity}.");
             return true;
+        }
+        
+        public void ClearInventory()
+        {
+            _items.Clear();
+            OnInventoryCleared?.Invoke();
+            Debug.Log("Inventory cleared.");
         }
 
         public void ExpandInventory(int additionalSlots)

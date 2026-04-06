@@ -1,11 +1,14 @@
 using UnityEngine;
 using System;
+using UnityEngine.InputSystem;
 
 namespace CabinProject
 {
     public class CrosshairManager : MonoBehaviour
     {
         public static CrosshairManager Instance { get; private set; }
+        
+        public event Action<ShippingBin> OnShippingBinInteracted;
 
         [Header("Attack Settings")]
         [SerializeField] private float _interactRange = 3.5f;
@@ -38,6 +41,11 @@ namespace CabinProject
         {
             _attackTimer = new Timer(_attackCooldown);
             _attackTimer.RemainingSeconds = 0f;
+
+            if (GameInput.Instance != null)
+            {
+                GameInput.Instance.OnInteract += OnInteract;
+            }
         }
 
         private void Update()
@@ -62,9 +70,41 @@ namespace CabinProject
 
         private void OnDestroy()
         {
+            if (GameInput.Instance != null)
+            {
+                GameInput.Instance.OnInteract -= OnInteract;
+            }
+
             if (Instance == this)
             {
                 Instance = null;
+            }
+        }
+
+        private void OnInteract(object sender, InputAction.CallbackContext context)
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null)
+            {
+                return;
+            }
+
+            Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+            RaycastHit[] hits = GetSortedHits(ray);
+
+            foreach (RaycastHit hit in hits)
+            {
+                if (TryCollect(hit))
+                {
+                    return;
+                }
+
+                ShippingBin shippingBin = hit.collider.GetComponentInParent<ShippingBin>();
+                if (shippingBin != null)
+                {
+                    OnShippingBinInteracted?.Invoke(shippingBin);
+                    return;
+                }
             }
         }
 
@@ -84,20 +124,12 @@ namespace CabinProject
             }
 
             Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
-
-            RaycastHit[] hits = Physics.RaycastAll(ray, _interactRange, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
-            Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+            RaycastHit[] hits = GetSortedHits(ray);
 
             if (hits.Length > 0)
             {
                 foreach (RaycastHit hit in hits)
                 {
-                    if (TryCollect(hit))
-                    {
-                        _attackTimer?.Reset();
-                        return;
-                    }
-
                     MarchingCubesVoxelDestruction voxelTarget = hit.collider.GetComponentInParent<MarchingCubesVoxelDestruction>();
                     if (voxelTarget != null)
                     {
@@ -116,6 +148,13 @@ namespace CabinProject
             }
 
             _attackTimer?.Reset();
+        }
+
+        private RaycastHit[] GetSortedHits(Ray ray)
+        {
+            RaycastHit[] hits = Physics.RaycastAll(ray, _interactRange, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
+            Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+            return hits;
         }
 
         private bool TryCollect(RaycastHit hit)

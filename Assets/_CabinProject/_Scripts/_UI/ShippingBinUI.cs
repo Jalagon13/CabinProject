@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -5,18 +6,17 @@ namespace CabinProject
 {
     public class ShippingBinUI : MonoBehaviour
     {
-        public static ShippingBinUI Instance { get; private set; }
-
         [SerializeField] private RectTransform _shippingBinMenuRt;
+        [SerializeField] private RectTransform _itemTextHolder;
+        [SerializeField] private SellItemTextUI _sellItemTextUIPrefab;
 
         private bool _isOpen;
-        private bool _blockNextInventoryToggle;
         public bool IsOpen => _isOpen;
+        private bool _blockNextInventoryToggle;
+        private int _totalSellValue;
 
         private void Awake()
         {
-            Instance = this;
-
             if (_shippingBinMenuRt == null)
             {
                 if (transform.childCount > 0)
@@ -34,30 +34,36 @@ namespace CabinProject
         {
             HideShippingBinMenu();
 
-            if (GameInput.Instance != null)
-            {
-                GameInput.Instance.OnInteract += OnInteract;
-                GameInput.Instance.OnInventoryToggle += OnInventoryToggle;
-            }
+            GameInput.Instance.OnInventoryToggle += OnInventoryToggle;
+            CrosshairManager.Instance.OnShippingBinInteracted += OnShippingBinInteracted;
+            InventoryManager.Instance.OnItemCollected += UpdateUI;
+            InventoryManager.Instance.OnInventoryCleared += UpdateUI;
         }
 
         private void OnDestroy()
         {
-            if (GameInput.Instance != null)
+            InventoryManager.Instance.OnItemCollected -= UpdateUI;
+            InventoryManager.Instance.OnInventoryCleared -= UpdateUI;
+            GameInput.Instance.OnInventoryToggle -= OnInventoryToggle;
+            CrosshairManager.Instance.OnShippingBinInteracted -= OnShippingBinInteracted;
+        }
+        
+        public void OnSellButtonPressed() // Connected through the button
+        {
+            if(_totalSellValue <= 0)
             {
-                GameInput.Instance.OnInteract -= OnInteract;
-                GameInput.Instance.OnInventoryToggle -= OnInventoryToggle;
+                return;
             }
+        
+            MoneyManager.Instance.AddMoney(_totalSellValue);
+            InventoryManager.Instance.ClearInventory();
 
-            if (Instance == this)
-            {
-                Instance = null;
-            }
+            HideShippingBinMenu();
         }
 
-        private void OnInteract(object sender, InputAction.CallbackContext context)
+        private void OnShippingBinInteracted(ShippingBin shippingBin)
         {
-            if (_isOpen || !IsLookingAtShippingBin())
+            if (_isOpen)
             {
                 return;
             }
@@ -92,25 +98,6 @@ namespace CabinProject
             return true;
         }
 
-        private bool IsLookingAtShippingBin()
-        {
-            Camera mainCamera = Camera.main;
-            if (mainCamera == null)
-            {
-                return false;
-            }
-
-            float interactRange = CrosshairManager.Instance != null ? CrosshairManager.Instance.InteractRange : 3.5f;
-            Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
-
-            if (!Physics.Raycast(ray, out RaycastHit hit, interactRange, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
-            {
-                return false;
-            }
-
-            return hit.collider.GetComponentInParent<ShippingBin>() != null;
-        }
-
         private void ShowShippingBinMenu()
         {
             _isOpen = true;
@@ -137,6 +124,53 @@ namespace CabinProject
             Time.timeScale = 1f;
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
+        }
+
+        private void UpdateUI(CollectableData data)
+        {
+            _totalSellValue = 0;
+
+            for (int i = _itemTextHolder.childCount - 1; i >= 0; i--)
+            {
+                Destroy(_itemTextHolder.GetChild(i).gameObject);
+            }
+            
+            int totalSellValue = 0;
+
+            Dictionary<CollectableData, int> itemCounts = new();
+
+            foreach (CollectableData item in InventoryManager.Instance.Items)
+            {
+                if (item == null)
+                {
+                    continue;
+                }
+
+                if (itemCounts.ContainsKey(item))
+                {
+                    itemCounts[item]++;
+                    continue;
+                }
+
+                itemCounts[item] = 1;
+            }
+
+            foreach (KeyValuePair<CollectableData, int> itemCount in itemCounts)
+            {
+                SellItemTextUI sellItemTextUI = Instantiate(_sellItemTextUIPrefab, _itemTextHolder);
+                sellItemTextUI.InitializeAsSellRow(itemCount.Key, itemCount.Value);
+                totalSellValue += itemCount.Key.SellValue * itemCount.Value;
+            }
+
+            SellItemTextUI totalTextUI = Instantiate(_sellItemTextUIPrefab, _itemTextHolder);
+            totalTextUI.InitializeAsTotalRow(totalSellValue);
+            
+            _totalSellValue = totalSellValue;
+        }
+
+        private void UpdateUI()
+        {
+            UpdateUI(null);
         }
     }
 }
