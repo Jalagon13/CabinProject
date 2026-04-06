@@ -15,6 +15,7 @@ namespace CabinProject
         public event EventHandler<InputAction.CallbackContext> OnSprintStarted;
         public event EventHandler<InputAction.CallbackContext> OnSprintEnded;
         public event EventHandler<InputAction.CallbackContext> OnInventoryToggle;
+        public event EventHandler<InputAction.CallbackContext> OnInteract;
 
         private PlayerInput _playerInput;
 
@@ -44,6 +45,7 @@ namespace CabinProject
             _playerInput.Player.Sprint.canceled += PlayerInput_Sprint;
             _playerInput.Player.Attack.started += PlayerInput_OnAttack;
             _playerInput.Player.Attack.canceled += PlayerInput_OnAttack;
+            _playerInput.Player.Interact.started += PlayerInput_OnInteract;
             
             _playerInput.UI.ToggleInventory.started += PlayerInput_OnIventoryToggle;
         }
@@ -72,11 +74,17 @@ namespace CabinProject
             _playerInput.Player.Sprint.canceled -= PlayerInput_Sprint;
             _playerInput.Player.Attack.started -= PlayerInput_OnAttack;
             _playerInput.Player.Attack.canceled -= PlayerInput_OnAttack;
+            _playerInput.Player.Interact.started -= PlayerInput_OnInteract;
 
             _playerInput.UI.ToggleInventory.started -= PlayerInput_OnIventoryToggle;
 
             _playerInput.Disable();
             _playerInput.Dispose();
+        }
+
+        private void PlayerInput_OnInteract(InputAction.CallbackContext context)
+        {
+            OnInteract?.Invoke(this, context);
         }
 
         private void PlayerInput_OnIventoryToggle(InputAction.CallbackContext context)

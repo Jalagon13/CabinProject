@@ -22,6 +22,7 @@ namespace CabinProject
         private void Start()
         {
             HideInventoryMenu();
+            _inventoryCapacityText.text = $"Total: {InventoryManager.Instance.Count} / {InventoryManager.Instance.Capacity}";
             _inventoryFullRt.gameObject.SetActive(false);
             InventoryManager.Instance.OnItemCollected += CheckIfInventoryFull;
             InventoryManager.Instance.OnItemCollected += UpdateUI;

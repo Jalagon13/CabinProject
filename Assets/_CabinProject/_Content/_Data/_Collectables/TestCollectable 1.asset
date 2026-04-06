@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd6b749b6329f4ec48e2120e8dc30a4d, type: 3}
   m_Name: TestCollectable 1
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.CollectableData
-  _itemName: 123
-  _sellValue: 15
+  _itemName: Stone
+  _sellValue: 25
   _itemIcon: {fileID: 21300002, guid: 358b5d9f23bc9413e87c9948acc67ee1, type: 3}
