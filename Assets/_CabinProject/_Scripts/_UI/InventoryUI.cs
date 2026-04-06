@@ -39,6 +39,11 @@ namespace CabinProject
 
         private void OnInventoryToggle(object sender, InputAction.CallbackContext e)
         {
+            if (ShippingBinUI.Instance != null && ShippingBinUI.Instance.ConsumeInventoryToggleBlock())
+            {
+                return;
+            }
+
             _inventoryOpen = !_inventoryOpen;
             
             if (_inventoryOpen)

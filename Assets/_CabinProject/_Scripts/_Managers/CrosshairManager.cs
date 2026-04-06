@@ -9,6 +9,7 @@ namespace CabinProject
 
         [Header("Attack Settings")]
         [SerializeField] private float _interactRange = 3.5f;
+        public float InteractRange => _interactRange;
         [SerializeField] private float _attackCooldown = 0.2f;
         [SerializeField] private string _collectableLayerName = "Collectable";
         
