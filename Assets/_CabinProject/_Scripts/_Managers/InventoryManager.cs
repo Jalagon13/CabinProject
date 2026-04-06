@@ -1,11 +1,14 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System;
 
 namespace CabinProject
 {
     public class InventoryManager : MonoBehaviour
     {
         public static InventoryManager Instance { get; private set; }
+        
+        public event Action<CollectableData> OnItemCollected;
 
         [Header("Inventory Settings")]
         [SerializeField] private int _capacity = 3;
@@ -44,6 +47,7 @@ namespace CabinProject
             }
             
             _items.Add(collectableData);
+            OnItemCollected?.Invoke(collectableData);
 
             Debug.Log($"Adding {collectableData.ItemName} to inventory. Capacity remaining: {RemainingCapacity} / {_capacity}.");
             return true;
