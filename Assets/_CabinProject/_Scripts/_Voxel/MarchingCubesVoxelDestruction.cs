@@ -1,4 +1,5 @@
 // File: MarchingCubesVoxelDestruction.cs
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -56,6 +57,8 @@ namespace CabinProject
         private ComputeBuffer _densityBuffer;
         private ComputeBuffer _triangleBuffer;
         private ComputeBuffer _triangleCountBuffer;
+        private float[] _densityValues;
+        private readonly List<StatueExposureTracker> _exposureTrackers = new List<StatueExposureTracker>();
 
         private int _marchingCubesKernelIndex;
         private int _excavateKernelIndex;
@@ -66,6 +69,11 @@ namespace CabinProject
 
 
         public bool IsReady { get; private set; }
+        public int PointResolution => _pointResolution;
+        public float IsoValue => _isoValue;
+        public Vector3 FieldMinLocal => _fieldMinLocal;
+        public Vector3 CellSize => _cellSize;
+        public float MaxCellSize => Mathf.Max(_cellSize.x, Mathf.Max(_cellSize.y, _cellSize.z));
 
         private void Awake()
         {
@@ -100,8 +108,10 @@ namespace CabinProject
 
             int groupCount = Mathf.CeilToInt(_pointResolution / (float)ExcavateKernelThreadSize);
             _computeShader.Dispatch(_excavateKernelIndex, groupCount, groupCount, groupCount);
+            List<int> newlyExposedSamples = ApplyCpuExcavation(hitPointWorld);
 
             RegenerateMesh();
+            NotifyExposureTrackers(newlyExposedSamples);
         }
 
         private void Initialize()
@@ -138,6 +148,7 @@ namespace CabinProject
             RegenerateMesh();
 
             IsReady = true;
+            RegisterChildExposureTrackers();
         }
 
         private void CreateRuntimeObjects()
@@ -183,7 +194,7 @@ namespace CabinProject
         private void InitializeDensityField()
         {
             int pointCount = _pointResolution * _pointResolution * _pointResolution;
-            float[] densityValues = new float[pointCount];
+            _densityValues = new float[pointCount];
             float surfaceBand = Mathf.Max(_cellSize.x, Mathf.Max(_cellSize.y, _cellSize.z));
 
             for (int z = 0; z < _pointResolution; z++)
@@ -195,12 +206,12 @@ namespace CabinProject
                         int index = ToIndex(x, y, z, _pointResolution);
                         Vector3 localPosition = GetLocalPosition(x, y, z);
                         float signedDistance = CalculateSignedDistanceToMesh(localPosition);
-                        densityValues[index] = Mathf.Clamp01(0.5f - (signedDistance / surfaceBand));
+                        _densityValues[index] = Mathf.Clamp01(0.5f - (signedDistance / surfaceBand));
                     }
                 }
             }
 
-            _densityBuffer.SetData(densityValues);
+            _densityBuffer.SetData(_densityValues);
         }
 
         private void DisableSourceRendering()
@@ -459,6 +470,149 @@ namespace CabinProject
 
             buffer.Release();
             buffer = null;
+        }
+
+        public void RegisterExposureTracker(StatueExposureTracker tracker)
+        {
+            if (tracker == null)
+            {
+                return;
+            }
+
+            if (!_exposureTrackers.Contains(tracker))
+            {
+                _exposureTrackers.Add(tracker);
+            }
+
+            if (IsReady)
+            {
+                tracker.BindToVolume(this);
+            }
+        }
+
+        public void UnregisterExposureTracker(StatueExposureTracker tracker)
+        {
+            if (tracker == null)
+            {
+                return;
+            }
+
+            _exposureTrackers.Remove(tracker);
+        }
+
+        public int ToFlatIndex(int x, int y, int z)
+        {
+            return ToIndex(x, y, z, _pointResolution);
+        }
+
+        public bool TryGetSampleCoordinates(int flatIndex, out Vector3Int coordinates)
+        {
+            coordinates = default;
+            if (flatIndex < 0 || flatIndex >= _pointResolution * _pointResolution * _pointResolution)
+            {
+                return false;
+            }
+
+            int planeSize = _pointResolution * _pointResolution;
+            int z = flatIndex / planeSize;
+            int remainder = flatIndex - (z * planeSize);
+            int y = remainder / _pointResolution;
+            int x = remainder - (y * _pointResolution);
+            coordinates = new Vector3Int(x, y, z);
+            return true;
+        }
+
+        public Vector3 GetSampleLocalPosition(int x, int y, int z)
+        {
+            return GetLocalPosition(x, y, z);
+        }
+
+        public bool IsSampleSolid(int flatIndex)
+        {
+            return flatIndex >= 0
+                && _densityValues != null
+                && flatIndex < _densityValues.Length
+                && _densityValues[flatIndex] >= _isoValue;
+        }
+
+        public void HideRemainingStone()
+        {
+            if (_runtimeMeshObject == null)
+            {
+                return;
+            }
+
+            _runtimeMeshObject.SetActive(false);
+        }
+
+        private void RegisterChildExposureTrackers()
+        {
+            StatueExposureTracker[] childTrackers = GetComponentsInChildren<StatueExposureTracker>(true);
+            Debug.Log($"{name} found {childTrackers.Length} child statue exposure tracker(s).", this);
+            foreach (StatueExposureTracker tracker in childTrackers)
+            {
+                RegisterExposureTracker(tracker);
+            }
+        }
+
+        private List<int> ApplyCpuExcavation(Vector3 hitPointWorld)
+        {
+            List<int> newlyExposedSamples = new List<int>();
+            if (_densityValues == null)
+            {
+                return newlyExposedSamples;
+            }
+
+            for (int z = 0; z < _pointResolution; z++)
+            {
+                for (int y = 0; y < _pointResolution; y++)
+                {
+                    for (int x = 0; x < _pointResolution; x++)
+                    {
+                        int index = ToIndex(x, y, z, _pointResolution);
+                        Vector3 localPosition = GetLocalPosition(x, y, z);
+                        Vector3 worldPosition = transform.TransformPoint(localPosition);
+                        float distanceToHit = Vector3.Distance(worldPosition, hitPointWorld);
+                        if (distanceToHit > _excavationRadius)
+                        {
+                            continue;
+                        }
+
+                        float previousDensity = _densityValues[index];
+                        float normalizedDistance = Mathf.Clamp01(distanceToHit / _excavationRadius);
+                        float excavatedDensity = normalizedDistance;
+                        float newDensity = Mathf.Min(previousDensity, excavatedDensity);
+                        _densityValues[index] = newDensity;
+
+                        if (previousDensity >= _isoValue && newDensity < _isoValue)
+                        {
+                            newlyExposedSamples.Add(index);
+                        }
+                    }
+                }
+            }
+
+            return newlyExposedSamples;
+        }
+
+        private void NotifyExposureTrackers(List<int> newlyExposedSamples)
+        {
+            if (newlyExposedSamples == null || newlyExposedSamples.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = _exposureTrackers.Count - 1; i >= 0; i--)
+            {
+                StatueExposureTracker tracker = _exposureTrackers[i];
+                if (tracker == null)
+                {
+                    _exposureTrackers.RemoveAt(i);
+                    continue;
+                }
+
+                tracker.OnVoxelSamplesExposed(newlyExposedSamples);
+            }
         }
     }
 }
