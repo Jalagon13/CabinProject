@@ -15,6 +15,9 @@ namespace CabinProject
         [field: Header("Item SFX")]
         [field: SerializeField] public EventReference ItemPickupSFX { get; private set; }
 
+        [field: Header("Mining SFX")]
+        [field: SerializeField] public EventReference StoneHitSFX { get; private set; }
+        
         
 
         private void Awake()
