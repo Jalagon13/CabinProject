@@ -3450,20 +3450,27 @@ MonoBehaviour:
   _maxDebrisPiecesPerExcavation: 6
   _targetVoxelsPerPiece: 10
   _minimumVoxelsPerPiece: 3
-  _voxelSizeMultiplier: 0.9
-  _surfaceOffset: 0.03
-  _spawnJitter: 0.015
+  _pieceMarchingCubesPadding: 1
+  _surfaceOffset: 0.01
+  _spawnJitter: 0.005
   _massPerVoxel: 0.08
-  _minimumMass: 0.05
-  _maximumMass: 2.5
-  _outwardImpulse: 0.65
-  _upwardImpulse: 0.2
-  _randomImpulse: 0.25
-  _spinImpulse: 0.35
-  _maxDepenetrationVelocity: 1.5
+  _minimumMass: 0.075
+  _maximumMass: 3
+  _outwardImpulse: 0.1
+  _upwardImpulse: 0.1
+  _randomImpulse: 0.01
+  _maxDepenetrationVelocity: 1
+  _linearDamping: 3.5
+  _angularDamping: 4.5
+  _sleepThreshold: 0.1
+  _settleDelay: 0.1
+  _settleLinearVelocityThreshold: 0.3
+  _settleAngularVelocityThreshold: 0.7
+  _settleCheckDuration: 0.1
+  _selfCollisionIgnoreDuration: 0.15
   _debrisColliderMaterial: {fileID: 13400000, guid: e8dbdd9076f224fcbb3fbce83628c278, type: 2}
   _pieceLifetime: 6
-  _shrinkStartNormalized: 0.7
+  _shrinkStartNormalized: 0.8
   _debrisParentOverride: {fileID: 0}
   _preferLocalManagersParent: 1
 --- !u!43 &1614226621

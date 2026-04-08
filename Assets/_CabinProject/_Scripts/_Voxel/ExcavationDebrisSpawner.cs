@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace CabinProject
 {
@@ -7,6 +9,14 @@ namespace CabinProject
     [RequireComponent(typeof(MarchingCubesVoxelDestruction))]
     public class ExcavationDebrisSpawner : MonoBehaviour
     {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Triangle
+        {
+            public Vector3 VertexA;
+            public Vector3 VertexB;
+            public Vector3 VertexC;
+        }
+
         private static readonly Vector3Int[] NeighborOffsets =
         {
             new Vector3Int(1, 0, 0),
@@ -23,7 +33,7 @@ namespace CabinProject
         [SerializeField] private int _maxDebrisPiecesPerExcavation = 6;
         [SerializeField] private int _targetVoxelsPerPiece = 10;
         [SerializeField] private int _minimumVoxelsPerPiece = 3;
-        [SerializeField] private float _voxelSizeMultiplier = 0.9f;
+        [SerializeField] private int _pieceMarchingCubesPadding = 1;
         [SerializeField] private float _surfaceOffset = 0.03f;
         [SerializeField] private float _spawnJitter = 0.015f;
 
@@ -34,8 +44,15 @@ namespace CabinProject
         [SerializeField] private float _outwardImpulse = 0.65f;
         [SerializeField] private float _upwardImpulse = 0.2f;
         [SerializeField] private float _randomImpulse = 0.25f;
-        [SerializeField] private float _spinImpulse = 0.35f;
         [SerializeField] private float _maxDepenetrationVelocity = 1.5f;
+        [SerializeField] private float _linearDamping = 1.5f;
+        [SerializeField] private float _angularDamping = 2.5f;
+        [SerializeField] private float _sleepThreshold = 0.05f;
+        [SerializeField] private float _settleDelay = 0.2f;
+        [SerializeField] private float _settleLinearVelocityThreshold = 0.1f;
+        [SerializeField] private float _settleAngularVelocityThreshold = 0.75f;
+        [SerializeField] private float _settleCheckDuration = 0.15f;
+        [SerializeField] private float _selfCollisionIgnoreDuration = 0.12f;
         [SerializeField] private PhysicsMaterial _debrisColliderMaterial;
 
         [Header("Cleanup")]
@@ -49,6 +66,18 @@ namespace CabinProject
         private MarchingCubesVoxelDestruction _volume;
         private MeshRenderer _sourceRenderer;
         private Transform _runtimeParent;
+
+        private const int MarchingCubesKernelThreadSize = 8;
+        private const int MaxTrianglesPerCell = 5;
+
+        private static readonly int DensityBufferId = Shader.PropertyToID("_DensityBuffer");
+        private static readonly int TriangleBufferId = Shader.PropertyToID("_Triangles");
+        private static readonly int CellResolutionId = Shader.PropertyToID("_CellResolution");
+        private static readonly int PointResolutionId = Shader.PropertyToID("_PointResolution");
+        private static readonly int IsoValueId = Shader.PropertyToID("_IsoValue");
+        private static readonly int FieldMinLocalId = Shader.PropertyToID("_FieldMinLocal");
+        private static readonly int CellSizeId = Shader.PropertyToID("_CellSize");
+        private static readonly int LocalToWorldId = Shader.PropertyToID("_LocalToWorld");
 
         private void Awake()
         {
@@ -71,10 +100,20 @@ namespace CabinProject
 
             List<List<Vector3Int>> connectedComponents = BuildConnectedComponents(voxels);
             List<List<Vector3Int>> debrisPieces = SplitIntoPieces(connectedComponents);
+            List<Collider> spawnedColliders = new List<Collider>(debrisPieces.Count);
 
             for (int i = 0; i < debrisPieces.Count; i++)
             {
-                SpawnPiece(debrisPieces[i], excavationPointWorld);
+                Collider pieceCollider = SpawnPiece(debrisPieces[i], excavationPointWorld);
+                if (pieceCollider != null)
+                {
+                    spawnedColliders.Add(pieceCollider);
+                }
+            }
+
+            if (spawnedColliders.Count > 1)
+            {
+                StartCoroutine(RestoreSiblingCollisions(spawnedColliders, _selfCollisionIgnoreDuration));
             }
         }
 
@@ -405,17 +444,16 @@ namespace CabinProject
             return voxels.Count > 0 ? average / voxels.Count : Vector3.zero;
         }
 
-        private void SpawnPiece(List<Vector3Int> pieceVoxels, Vector3 excavationPointWorld)
+        private Collider SpawnPiece(List<Vector3Int> pieceVoxels, Vector3 excavationPointWorld)
         {
             if (pieceVoxels == null || pieceVoxels.Count < _minimumVoxelsPerPiece)
             {
-                return;
+                return null;
             }
 
             HashSet<Vector3Int> voxelSet = new HashSet<Vector3Int>(pieceVoxels);
-            Vector3 localCenter = CalculateLocalCenter(pieceVoxels);
-            Vector3 worldCenter = _volume.transform.TransformPoint(localCenter);
-            Mesh mesh = BuildPieceMesh(pieceVoxels, voxelSet, worldCenter, localCenter);
+            Vector3 worldCenter = _volume.transform.TransformPoint(CalculateLocalCenter(pieceVoxels));
+            Mesh mesh = BuildPieceMesh(pieceVoxels, voxelSet, worldCenter);
             if (mesh == null || mesh.vertexCount == 0)
             {
                 if (mesh != null)
@@ -423,7 +461,7 @@ namespace CabinProject
                     Destroy(mesh);
                 }
 
-                return;
+                return null;
             }
 
             GameObject pieceObject = new GameObject($"{name}_DebrisPiece");
@@ -447,15 +485,30 @@ namespace CabinProject
 
             rigidbody.mass = Mathf.Clamp(pieceVoxels.Count * _massPerVoxel, _minimumMass, _maximumMass);
             rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             rigidbody.maxDepenetrationVelocity = _maxDepenetrationVelocity;
+            rigidbody.linearDamping = Mathf.Max(0f, _linearDamping);
+            rigidbody.angularDamping = Mathf.Max(0f, _angularDamping);
+            rigidbody.sleepThreshold = Mathf.Max(0f, _sleepThreshold);
 
-            debrisPiece.Initialize(_pieceLifetime, _shrinkStartNormalized);
+            debrisPiece.Initialize(
+                _pieceLifetime,
+                _shrinkStartNormalized,
+                rigidbody,
+                _settleDelay,
+                _settleLinearVelocityThreshold,
+                _settleAngularVelocityThreshold,
+                _settleCheckDuration);
 
-            Vector3 impulseDirection = (worldCenter - excavationPointWorld).normalized;
+            Vector3 impulseDirection = _volume.GetExcavationSurfaceNormal(excavationPointWorld);
             if (impulseDirection.sqrMagnitude < 0.0001f)
             {
-                impulseDirection = Random.onUnitSphere;
+                impulseDirection = (worldCenter - excavationPointWorld).normalized;
+            }
+
+            if (impulseDirection.sqrMagnitude < 0.0001f)
+            {
+                impulseDirection = transform.up;
             }
 
             Vector3 spawnOffset = (impulseDirection * _surfaceOffset) + (Random.insideUnitSphere * _spawnJitter);
@@ -465,163 +518,114 @@ namespace CabinProject
                 + (Vector3.up * _upwardImpulse)
                 + (Random.insideUnitSphere * _randomImpulse);
             rigidbody.AddForce(impulse, ForceMode.Impulse);
-            rigidbody.AddTorque(Random.insideUnitSphere * _spinImpulse, ForceMode.Impulse);
+            return meshCollider;
         }
 
-        private Mesh BuildPieceMesh(List<Vector3Int> pieceVoxels, HashSet<Vector3Int> voxelSet, Vector3 worldCenter, Vector3 localCenter)
+        private Mesh BuildPieceMesh(List<Vector3Int> pieceVoxels, HashSet<Vector3Int> voxelSet, Vector3 worldCenter)
         {
-            float sizeMultiplier = Mathf.Max(0.01f, _voxelSizeMultiplier);
-            Vector3 halfExtents = Vector3.Scale(_volume.CellSize, Vector3.one * sizeMultiplier) * 0.5f;
-
-            List<Vector3> vertices = new List<Vector3>(pieceVoxels.Count * 24);
-            List<int> triangles = new List<int>(pieceVoxels.Count * 36);
-            List<Vector3> normals = new List<Vector3>(pieceVoxels.Count * 24);
-            List<Vector2> uvs = new List<Vector2>(pieceVoxels.Count * 24);
-
-            for (int i = 0; i < pieceVoxels.Count; i++)
-            {
-                Vector3Int voxel = pieceVoxels[i];
-                Vector3 localVoxelCenter = _volume.GetSampleLocalPosition(voxel.x, voxel.y, voxel.z);
-
-                for (int directionIndex = 0; directionIndex < NeighborOffsets.Length; directionIndex++)
-                {
-                    Vector3Int neighbor = voxel + NeighborOffsets[directionIndex];
-                    if (voxelSet.Contains(neighbor))
-                    {
-                        continue;
-                    }
-
-                    AddFace(vertices, triangles, normals, uvs, localVoxelCenter, localCenter, worldCenter, halfExtents, directionIndex);
-                }
-            }
-
-            if (vertices.Count == 0)
+            ComputeShader computeShader = CrosshairManager.Instance != null ? CrosshairManager.Instance.ComputeShader : null;
+            if (computeShader == null || voxelSet.Count == 0)
             {
                 return null;
             }
 
+            Vector3Int min = pieceVoxels[0];
+            Vector3Int max = pieceVoxels[0];
+            for (int i = 1; i < pieceVoxels.Count; i++)
+            {
+                min = Vector3Int.Min(min, pieceVoxels[i]);
+                max = Vector3Int.Max(max, pieceVoxels[i]);
+            }
+
+            int padding = Mathf.Max(1, _pieceMarchingCubesPadding);
+            Vector3Int regionMin = min - (Vector3Int.one * padding);
+            Vector3Int regionMax = max + (Vector3Int.one * padding);
+            Vector3Int pointDimensions = (regionMax - regionMin) + Vector3Int.one;
+            int pointResolution = Mathf.Max(pointDimensions.x, Mathf.Max(pointDimensions.y, pointDimensions.z));
+            if (pointResolution < 2)
+            {
+                return null;
+            }
+
+            int pointCount = pointResolution * pointResolution * pointResolution;
+            int cellResolution = pointResolution - 1;
+            int cellCount = cellResolution * cellResolution * cellResolution;
+            float[] densityValues = new float[pointCount];
+
+            for (int z = regionMin.z; z <= regionMax.z; z++)
+            {
+                for (int y = regionMin.y; y <= regionMax.y; y++)
+                {
+                    for (int x = regionMin.x; x <= regionMax.x; x++)
+                    {
+                        int localX = x - regionMin.x;
+                        int localY = y - regionMin.y;
+                        int localZ = z - regionMin.z;
+                        int flatIndex = localX + pointResolution * (localY + (pointResolution * localZ));
+                        densityValues[flatIndex] = voxelSet.Contains(new Vector3Int(x, y, z)) ? 1f : 0f;
+                    }
+                }
+            }
+
+            using ComputeBuffer densityBuffer = new ComputeBuffer(pointCount, sizeof(float));
+            using ComputeBuffer triangleBuffer = new ComputeBuffer(Mathf.Max(1, cellCount * MaxTrianglesPerCell), Marshal.SizeOf<Triangle>(), ComputeBufferType.Append);
+            using ComputeBuffer triangleCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+
+            densityBuffer.SetData(densityValues);
+            triangleBuffer.SetCounterValue(0);
+
+            int kernelIndex = computeShader.FindKernel("MarchingCubes");
+            computeShader.SetInt(CellResolutionId, cellResolution);
+            computeShader.SetInt(PointResolutionId, pointResolution);
+            computeShader.SetFloat(IsoValueId, _volume.IsoValue);
+            computeShader.SetVector(FieldMinLocalId, GetSampleLocalPosition(regionMin));
+            computeShader.SetVector(CellSizeId, _volume.CellSize);
+            computeShader.SetMatrix(LocalToWorldId, Matrix4x4.identity);
+            computeShader.SetBuffer(kernelIndex, DensityBufferId, densityBuffer);
+            computeShader.SetBuffer(kernelIndex, TriangleBufferId, triangleBuffer);
+
+            int groupCount = Mathf.CeilToInt(cellResolution / (float)MarchingCubesKernelThreadSize);
+            computeShader.Dispatch(kernelIndex, Mathf.Max(1, groupCount), Mathf.Max(1, groupCount), Mathf.Max(1, groupCount));
+
+            ComputeBuffer.CopyCount(triangleBuffer, triangleCountBuffer, 0);
+            int[] triangleCountData = { 0 };
+            triangleCountBuffer.GetData(triangleCountData);
+            int triangleCount = triangleCountData[0];
+            if (triangleCount <= 0)
+            {
+                return null;
+            }
+
+            Triangle[] generatedTriangles = new Triangle[triangleCount];
+            triangleBuffer.GetData(generatedTriangles, 0, 0, triangleCount);
+
+            Vector3[] vertices = new Vector3[triangleCount * 3];
+            int[] indices = new int[triangleCount * 3];
+
+            for (int i = 0; i < triangleCount; i++)
+            {
+                int vertexIndex = i * 3;
+                vertices[vertexIndex] = ToPieceLocalVertex(generatedTriangles[i].VertexA, worldCenter);
+                vertices[vertexIndex + 1] = ToPieceLocalVertex(generatedTriangles[i].VertexC, worldCenter);
+                vertices[vertexIndex + 2] = ToPieceLocalVertex(generatedTriangles[i].VertexB, worldCenter);
+
+                indices[vertexIndex] = vertexIndex;
+                indices[vertexIndex + 1] = vertexIndex + 1;
+                indices[vertexIndex + 2] = vertexIndex + 2;
+            }
+
             Mesh mesh = new Mesh
             {
-                name = $"{name}_ExcavationDebrisMesh"
+                name = $"{name}_ExcavationDebrisMesh",
+                indexFormat = IndexFormat.UInt32
             };
-            mesh.SetVertices(vertices);
-            mesh.SetTriangles(triangles, 0);
-            mesh.SetNormals(normals);
-            mesh.SetUVs(0, uvs);
+            mesh.vertices = vertices;
+            mesh.triangles = indices;
             mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
+            mesh.uv = GenerateProjectedUvs(mesh.vertices, mesh.normals);
+            mesh.RecalculateTangents();
             return mesh;
-        }
-
-        private void AddFace(
-            List<Vector3> vertices,
-            List<int> triangles,
-            List<Vector3> normals,
-            List<Vector2> uvs,
-            Vector3 localVoxelCenter,
-            Vector3 localCenter,
-            Vector3 worldCenter,
-            Vector3 halfExtents,
-            int directionIndex)
-        {
-            Vector3[] faceVertices = GetFaceVertices(localVoxelCenter, halfExtents, directionIndex);
-            Vector3 faceNormal = GetFaceNormal(directionIndex);
-            int startIndex = vertices.Count;
-
-            for (int i = 0; i < faceVertices.Length; i++)
-            {
-                Vector3 worldVertex = _volume.transform.TransformPoint(faceVertices[i]);
-                vertices.Add(worldVertex - worldCenter);
-                normals.Add(_volume.transform.TransformDirection(faceNormal).normalized);
-            }
-
-            triangles.Add(startIndex);
-            triangles.Add(startIndex + 1);
-            triangles.Add(startIndex + 2);
-            triangles.Add(startIndex);
-            triangles.Add(startIndex + 2);
-            triangles.Add(startIndex + 3);
-
-            uvs.Add(new Vector2(0f, 0f));
-            uvs.Add(new Vector2(1f, 0f));
-            uvs.Add(new Vector2(1f, 1f));
-            uvs.Add(new Vector2(0f, 1f));
-        }
-
-        private static Vector3[] GetFaceVertices(Vector3 center, Vector3 halfExtents, int directionIndex)
-        {
-            Vector3 min = center - halfExtents;
-            Vector3 max = center + halfExtents;
-
-            switch (directionIndex)
-            {
-                case 0:
-                    return new[]
-                    {
-                        new Vector3(max.x, min.y, min.z),
-                        new Vector3(max.x, max.y, min.z),
-                        new Vector3(max.x, max.y, max.z),
-                        new Vector3(max.x, min.y, max.z)
-                    };
-                case 1:
-                    return new[]
-                    {
-                        new Vector3(min.x, min.y, max.z),
-                        new Vector3(min.x, max.y, max.z),
-                        new Vector3(min.x, max.y, min.z),
-                        new Vector3(min.x, min.y, min.z)
-                    };
-                case 2:
-                    return new[]
-                    {
-                        new Vector3(min.x, max.y, min.z),
-                        new Vector3(min.x, max.y, max.z),
-                        new Vector3(max.x, max.y, max.z),
-                        new Vector3(max.x, max.y, min.z)
-                    };
-                case 3:
-                    return new[]
-                    {
-                        new Vector3(min.x, min.y, max.z),
-                        new Vector3(min.x, min.y, min.z),
-                        new Vector3(max.x, min.y, min.z),
-                        new Vector3(max.x, min.y, max.z)
-                    };
-                case 4:
-                    return new[]
-                    {
-                        new Vector3(max.x, min.y, max.z),
-                        new Vector3(max.x, max.y, max.z),
-                        new Vector3(min.x, max.y, max.z),
-                        new Vector3(min.x, min.y, max.z)
-                    };
-                default:
-                    return new[]
-                    {
-                        new Vector3(min.x, min.y, min.z),
-                        new Vector3(min.x, max.y, min.z),
-                        new Vector3(max.x, max.y, min.z),
-                        new Vector3(max.x, min.y, min.z)
-                    };
-            }
-        }
-
-        private static Vector3 GetFaceNormal(int directionIndex)
-        {
-            switch (directionIndex)
-            {
-                case 0:
-                    return Vector3.right;
-                case 1:
-                    return Vector3.left;
-                case 2:
-                    return Vector3.up;
-                case 3:
-                    return Vector3.down;
-                case 4:
-                    return Vector3.forward;
-                default:
-                    return Vector3.back;
-            }
         }
 
         private Vector3 CalculateLocalCenter(List<Vector3Int> pieceVoxels)
@@ -634,6 +638,43 @@ namespace CabinProject
             }
 
             return center / pieceVoxels.Count;
+        }
+
+        private Vector3 GetSampleLocalPosition(Vector3Int coordinates)
+        {
+            return _volume.FieldMinLocal + Vector3.Scale((Vector3)coordinates, _volume.CellSize);
+        }
+
+        private Vector3 ToPieceLocalVertex(Vector3 sourceLocalVertex, Vector3 worldCenter)
+        {
+            return _volume.transform.TransformPoint(sourceLocalVertex) - worldCenter;
+        }
+
+        private Vector2[] GenerateProjectedUvs(Vector3[] vertices, Vector3[] normals)
+        {
+            Vector2[] uvs = new Vector2[vertices.Length];
+
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 normal = normals != null && i < normals.Length ? normals[i] : Vector3.up;
+                Vector3 absoluteNormal = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+                Vector3 vertex = vertices[i];
+
+                if (absoluteNormal.y >= absoluteNormal.x && absoluteNormal.y >= absoluteNormal.z)
+                {
+                    uvs[i] = new Vector2(vertex.x, vertex.z);
+                }
+                else if (absoluteNormal.x >= absoluteNormal.z)
+                {
+                    uvs[i] = new Vector2(vertex.z, vertex.y);
+                }
+                else
+                {
+                    uvs[i] = new Vector2(vertex.x, vertex.y);
+                }
+            }
+
+            return uvs;
         }
 
         private Material[] GetDebrisMaterials()
@@ -675,6 +716,56 @@ namespace CabinProject
             }
 
             return _runtimeParent;
+        }
+
+        private System.Collections.IEnumerator RestoreSiblingCollisions(List<Collider> spawnedColliders, float ignoreDuration)
+        {
+            float delay = Mathf.Max(0f, ignoreDuration);
+
+            for (int i = 0; i < spawnedColliders.Count; i++)
+            {
+                Collider left = spawnedColliders[i];
+                if (left == null)
+                {
+                    continue;
+                }
+
+                for (int j = i + 1; j < spawnedColliders.Count; j++)
+                {
+                    Collider right = spawnedColliders[j];
+                    if (right == null)
+                    {
+                        continue;
+                    }
+
+                    Physics.IgnoreCollision(left, right, true);
+                }
+            }
+
+            if (delay > 0f)
+            {
+                yield return new WaitForSeconds(delay);
+            }
+
+            for (int i = 0; i < spawnedColliders.Count; i++)
+            {
+                Collider left = spawnedColliders[i];
+                if (left == null)
+                {
+                    continue;
+                }
+
+                for (int j = i + 1; j < spawnedColliders.Count; j++)
+                {
+                    Collider right = spawnedColliders[j];
+                    if (right == null)
+                    {
+                        continue;
+                    }
+
+                    Physics.IgnoreCollision(left, right, false);
+                }
+            }
         }
 
         private static void Shuffle<T>(List<T> values)

@@ -603,6 +603,25 @@ namespace CabinProject
             return closestPoint;
         }
 
+        public Vector3 GetExcavationSurfaceNormal(Vector3 hitPointWorld)
+        {
+            if (_densityValues == null || _densityValues.Length == 0)
+            {
+                return transform.up;
+            }
+
+            Vector3 hitPointLocal = transform.InverseTransformPoint(hitPointWorld);
+            Vector3 gradient = EstimateDensityGradient(hitPointLocal);
+            if (gradient.sqrMagnitude <= 0.000001f)
+            {
+                Vector3 fallback = (hitPointWorld - transform.position).normalized;
+                return fallback.sqrMagnitude > 0.000001f ? fallback : transform.up;
+            }
+
+            Vector3 outwardLocalNormal = -gradient.normalized;
+            return transform.TransformDirection(outwardLocalNormal).normalized;
+        }
+
         public void HideRemainingStone()
         {
             if (_runtimeMeshObject == null)
@@ -837,6 +856,61 @@ namespace CabinProject
 
             visited[regionIndex] = true;
             queue.Enqueue(regionIndex);
+        }
+
+        private Vector3 EstimateDensityGradient(Vector3 localPosition)
+        {
+            float offsetX = Mathf.Max(_cellSize.x * 0.5f, 0.0001f);
+            float offsetY = Mathf.Max(_cellSize.y * 0.5f, 0.0001f);
+            float offsetZ = Mathf.Max(_cellSize.z * 0.5f, 0.0001f);
+
+            float sampleXPositive = SampleDensityLocal(localPosition + new Vector3(offsetX, 0f, 0f));
+            float sampleXNegative = SampleDensityLocal(localPosition - new Vector3(offsetX, 0f, 0f));
+            float sampleYPositive = SampleDensityLocal(localPosition + new Vector3(0f, offsetY, 0f));
+            float sampleYNegative = SampleDensityLocal(localPosition - new Vector3(0f, offsetY, 0f));
+            float sampleZPositive = SampleDensityLocal(localPosition + new Vector3(0f, 0f, offsetZ));
+            float sampleZNegative = SampleDensityLocal(localPosition - new Vector3(0f, 0f, offsetZ));
+
+            return new Vector3(
+                (sampleXPositive - sampleXNegative) / (offsetX * 2f),
+                (sampleYPositive - sampleYNegative) / (offsetY * 2f),
+                (sampleZPositive - sampleZNegative) / (offsetZ * 2f));
+        }
+
+        private float SampleDensityLocal(Vector3 localPosition)
+        {
+            Vector3 relative = localPosition - _fieldMinLocal;
+            float x = Mathf.Clamp(relative.x / _cellSize.x, 0f, _pointResolution - 1f);
+            float y = Mathf.Clamp(relative.y / _cellSize.y, 0f, _pointResolution - 1f);
+            float z = Mathf.Clamp(relative.z / _cellSize.z, 0f, _pointResolution - 1f);
+
+            int x0 = Mathf.FloorToInt(x);
+            int y0 = Mathf.FloorToInt(y);
+            int z0 = Mathf.FloorToInt(z);
+            int x1 = Mathf.Min(x0 + 1, _pointResolution - 1);
+            int y1 = Mathf.Min(y0 + 1, _pointResolution - 1);
+            int z1 = Mathf.Min(z0 + 1, _pointResolution - 1);
+
+            float tx = x - x0;
+            float ty = y - y0;
+            float tz = z - z0;
+
+            float c000 = _densityValues[ToIndex(x0, y0, z0, _pointResolution)];
+            float c100 = _densityValues[ToIndex(x1, y0, z0, _pointResolution)];
+            float c010 = _densityValues[ToIndex(x0, y1, z0, _pointResolution)];
+            float c110 = _densityValues[ToIndex(x1, y1, z0, _pointResolution)];
+            float c001 = _densityValues[ToIndex(x0, y0, z1, _pointResolution)];
+            float c101 = _densityValues[ToIndex(x1, y0, z1, _pointResolution)];
+            float c011 = _densityValues[ToIndex(x0, y1, z1, _pointResolution)];
+            float c111 = _densityValues[ToIndex(x1, y1, z1, _pointResolution)];
+
+            float c00 = Mathf.Lerp(c000, c100, tx);
+            float c10 = Mathf.Lerp(c010, c110, tx);
+            float c01 = Mathf.Lerp(c001, c101, tx);
+            float c11 = Mathf.Lerp(c011, c111, tx);
+            float c0 = Mathf.Lerp(c00, c10, ty);
+            float c1 = Mathf.Lerp(c01, c11, ty);
+            return Mathf.Lerp(c0, c1, tz);
         }
 
         private void NotifyExposureTrackers(List<int> newlyExposedSamples)
