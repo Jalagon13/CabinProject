@@ -136,10 +136,11 @@ namespace CabinProject
                     MarchingCubesVoxelDestruction voxelTarget = hit.collider.GetComponentInParent<MarchingCubesVoxelDestruction>();
                     if (voxelTarget != null)
                     {
-                        voxelTarget.Excavate(hit.point);
-                        AudioManager.Instance.PlayOneShot(FMODEvents.Instance.StoneHitSFX, hit.point);
-                        Instantiate(_stoneHitPS, hit.point, Quaternion.identity);
-                        Instantiate(_stoneHitSmokePS, hit.point, Quaternion.identity);
+                        Vector3 excavationPoint = voxelTarget.GetExcavationPoint(ray, hit.point, hit.distance);
+                        voxelTarget.Excavate(excavationPoint);
+                        AudioManager.Instance.PlayOneShot(FMODEvents.Instance.StoneHitSFX, excavationPoint);
+                        Instantiate(_stoneHitPS, excavationPoint, Quaternion.identity);
+                        Instantiate(_stoneHitSmokePS, excavationPoint, Quaternion.identity);
                         // Debug.Log($"Excavated {voxelTarget.name} at {hit.point}.");
                         _attackTimer?.Reset();
                         return;

@@ -3430,6 +3430,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.MarchingCubesVoxelDestruction
   _generatedUvScale: 1
+  _floatingFragmentCleanupRadiusMultiplier: 2
+  _maxFloatingFragmentVoxelCount: 10
 --- !u!43 &1614226621
 Mesh:
   m_ObjectHideFlags: 0

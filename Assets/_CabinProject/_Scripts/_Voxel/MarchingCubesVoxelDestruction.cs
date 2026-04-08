@@ -53,6 +53,8 @@ namespace CabinProject
         private float _excavationRadius = 0.5f;
         private float _isoValue = 0.5f;
         [SerializeField] private float _generatedUvScale = 1f;
+        [SerializeField] private float _floatingFragmentCleanupRadiusMultiplier = 2f;
+        [SerializeField] private int _maxFloatingFragmentVoxelCount = 8;
         private ComputeShader _computeShader;
 
         private ComputeBuffer _densityBuffer;
@@ -110,6 +112,8 @@ namespace CabinProject
             int groupCount = Mathf.CeilToInt(_pointResolution / (float)ExcavateKernelThreadSize);
             _computeShader.Dispatch(_excavateKernelIndex, groupCount, groupCount, groupCount);
             List<int> newlyExposedSamples = ApplyCpuExcavation(hitPointWorld);
+            RemoveFloatingFragmentsNearExcavation(hitPointWorld, newlyExposedSamples);
+            _densityBuffer.SetData(_densityValues);
 
             RegenerateMesh();
             NotifyExposureTrackers(newlyExposedSamples);
@@ -566,6 +570,35 @@ namespace CabinProject
                 && _densityValues[flatIndex] >= _isoValue;
         }
 
+        public Vector3 GetExcavationPoint(Ray ray, Vector3 fallbackPointWorld, float fallbackDistance)
+        {
+            float closestDistance = fallbackDistance;
+            Vector3 closestPoint = fallbackPointWorld;
+
+            for (int i = _exposureTrackers.Count - 1; i >= 0; i--)
+            {
+                StatueExposureTracker tracker = _exposureTrackers[i];
+                if (tracker == null)
+                {
+                    _exposureTrackers.RemoveAt(i);
+                    continue;
+                }
+
+                if (!tracker.TryGetSurfaceHit(ray, fallbackDistance, out Vector3 statueHitPoint, out float statueHitDistance))
+                {
+                    continue;
+                }
+
+                if (statueHitDistance < closestDistance)
+                {
+                    closestDistance = statueHitDistance;
+                    closestPoint = statueHitPoint;
+                }
+            }
+
+            return closestPoint;
+        }
+
         public void HideRemainingStone()
         {
             if (_runtimeMeshObject == null)
@@ -624,6 +657,182 @@ namespace CabinProject
             }
 
             return newlyExposedSamples;
+        }
+
+        private void RemoveFloatingFragmentsNearExcavation(Vector3 hitPointWorld, List<int> newlyExposedSamples)
+        {
+            if (_densityValues == null || _maxFloatingFragmentVoxelCount <= 0)
+            {
+                return;
+            }
+
+            float cleanupRadius = Mathf.Max(_excavationRadius, _excavationRadius * _floatingFragmentCleanupRadiusMultiplier);
+            Vector3 hitPointLocal = transform.InverseTransformPoint(hitPointWorld);
+            Vector3 localMin = hitPointLocal - Vector3.one * cleanupRadius;
+            Vector3 localMax = hitPointLocal + Vector3.one * cleanupRadius;
+
+            Vector3Int min = LocalPositionToSampleCoordinates(localMin, true);
+            Vector3Int max = LocalPositionToSampleCoordinates(localMax, false);
+            int regionWidth = max.x - min.x + 1;
+            int regionHeight = max.y - min.y + 1;
+            int regionDepth = max.z - min.z + 1;
+            if (regionWidth <= 0 || regionHeight <= 0 || regionDepth <= 0)
+            {
+                return;
+            }
+
+            int regionCount = regionWidth * regionHeight * regionDepth;
+            bool[] isCandidate = new bool[regionCount];
+            bool[] visited = new bool[regionCount];
+            Queue<int> queue = new Queue<int>();
+            List<int> component = new List<int>();
+
+            for (int z = min.z; z <= max.z; z++)
+            {
+                for (int y = min.y; y <= max.y; y++)
+                {
+                    for (int x = min.x; x <= max.x; x++)
+                    {
+                        int flatIndex = ToIndex(x, y, z, _pointResolution);
+                        if (_densityValues[flatIndex] < _isoValue)
+                        {
+                            continue;
+                        }
+
+                        Vector3 sampleLocal = GetLocalPosition(x, y, z);
+                        if ((sampleLocal - hitPointLocal).sqrMagnitude > cleanupRadius * cleanupRadius)
+                        {
+                            continue;
+                        }
+
+                        isCandidate[ToRegionIndex(x, y, z, min, regionWidth, regionHeight)] = true;
+                    }
+                }
+            }
+
+            for (int z = min.z; z <= max.z; z++)
+            {
+                for (int y = min.y; y <= max.y; y++)
+                {
+                    for (int x = min.x; x <= max.x; x++)
+                    {
+                        int regionIndex = ToRegionIndex(x, y, z, min, regionWidth, regionHeight);
+                        if (!isCandidate[regionIndex] || visited[regionIndex])
+                        {
+                            continue;
+                        }
+
+                        component.Clear();
+                        queue.Clear();
+                        queue.Enqueue(regionIndex);
+                        visited[regionIndex] = true;
+                        bool touchesBoundary = false;
+
+                        while (queue.Count > 0)
+                        {
+                            int currentRegionIndex = queue.Dequeue();
+                            component.Add(currentRegionIndex);
+                            RegionIndexToCoordinates(currentRegionIndex, min, regionWidth, regionHeight, out int currentX, out int currentY, out int currentZ);
+
+                            if (currentX == min.x || currentX == max.x
+                                || currentY == min.y || currentY == max.y
+                                || currentZ == min.z || currentZ == max.z)
+                            {
+                                touchesBoundary = true;
+                            }
+
+                            TryEnqueueNeighbor(currentX - 1, currentY, currentZ, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                            TryEnqueueNeighbor(currentX + 1, currentY, currentZ, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                            TryEnqueueNeighbor(currentX, currentY - 1, currentZ, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                            TryEnqueueNeighbor(currentX, currentY + 1, currentZ, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                            TryEnqueueNeighbor(currentX, currentY, currentZ - 1, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                            TryEnqueueNeighbor(currentX, currentY, currentZ + 1, min, max, regionWidth, regionHeight, isCandidate, visited, queue);
+                        }
+
+                        if (touchesBoundary || component.Count > _maxFloatingFragmentVoxelCount)
+                        {
+                            continue;
+                        }
+
+                        for (int i = 0; i < component.Count; i++)
+                        {
+                            RegionIndexToCoordinates(component[i], min, regionWidth, regionHeight, out int voxelX, out int voxelY, out int voxelZ);
+                            int flatIndex = ToIndex(voxelX, voxelY, voxelZ, _pointResolution);
+                            if (_densityValues[flatIndex] < _isoValue)
+                            {
+                                continue;
+                            }
+
+                            _densityValues[flatIndex] = 0f;
+                            newlyExposedSamples?.Add(flatIndex);
+                        }
+                    }
+                }
+            }
+        }
+
+        private Vector3Int LocalPositionToSampleCoordinates(Vector3 localPosition, bool roundDown)
+        {
+            Vector3 relativePosition = localPosition - _fieldMinLocal;
+            int x = roundDown
+                ? Mathf.FloorToInt(relativePosition.x / _cellSize.x)
+                : Mathf.CeilToInt(relativePosition.x / _cellSize.x);
+            int y = roundDown
+                ? Mathf.FloorToInt(relativePosition.y / _cellSize.y)
+                : Mathf.CeilToInt(relativePosition.y / _cellSize.y);
+            int z = roundDown
+                ? Mathf.FloorToInt(relativePosition.z / _cellSize.z)
+                : Mathf.CeilToInt(relativePosition.z / _cellSize.z);
+
+            int maxIndex = _pointResolution - 1;
+            return new Vector3Int(
+                Mathf.Clamp(x, 0, maxIndex),
+                Mathf.Clamp(y, 0, maxIndex),
+                Mathf.Clamp(z, 0, maxIndex));
+        }
+
+        private static int ToRegionIndex(int x, int y, int z, Vector3Int min, int regionWidth, int regionHeight)
+        {
+            return (x - min.x) + regionWidth * ((y - min.y) + regionHeight * (z - min.z));
+        }
+
+        private static void RegionIndexToCoordinates(int regionIndex, Vector3Int min, int regionWidth, int regionHeight, out int x, out int y, out int z)
+        {
+            int planeSize = regionWidth * regionHeight;
+            int localZ = regionIndex / planeSize;
+            int remainder = regionIndex - (localZ * planeSize);
+            int localY = remainder / regionWidth;
+            int localX = remainder - (localY * regionWidth);
+            x = min.x + localX;
+            y = min.y + localY;
+            z = min.z + localZ;
+        }
+
+        private static void TryEnqueueNeighbor(
+            int x,
+            int y,
+            int z,
+            Vector3Int min,
+            Vector3Int max,
+            int regionWidth,
+            int regionHeight,
+            bool[] isCandidate,
+            bool[] visited,
+            Queue<int> queue)
+        {
+            if (x < min.x || x > max.x || y < min.y || y > max.y || z < min.z || z > max.z)
+            {
+                return;
+            }
+
+            int regionIndex = ToRegionIndex(x, y, z, min, regionWidth, regionHeight);
+            if (!isCandidate[regionIndex] || visited[regionIndex])
+            {
+                return;
+            }
+
+            visited[regionIndex] = true;
+            queue.Enqueue(regionIndex);
         }
 
         private void NotifyExposureTrackers(List<int> newlyExposedSamples)

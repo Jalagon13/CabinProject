@@ -93,6 +93,58 @@ namespace CabinProject
             }
         }
 
+        public bool TryGetSurfaceHit(Ray worldRay, float maxDistance, out Vector3 hitPoint, out float hitDistance)
+        {
+            hitPoint = default;
+            hitDistance = 0f;
+
+            if (_statueMesh == null)
+            {
+                return false;
+            }
+
+            Vector3[] vertices = _statueMesh.vertices;
+            int[] triangles = _statueMesh.triangles;
+            if (vertices == null || triangles == null || triangles.Length < 3)
+            {
+                return false;
+            }
+
+            Ray localRay = new Ray(
+                transform.InverseTransformPoint(worldRay.origin),
+                transform.InverseTransformDirection(worldRay.direction).normalized);
+
+            float closestLocalDistance = float.PositiveInfinity;
+            bool foundHit = false;
+
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                Vector3 a = vertices[triangles[i]];
+                Vector3 b = vertices[triangles[i + 1]];
+                Vector3 c = vertices[triangles[i + 2]];
+
+                if (!RayIntersectsTriangle(localRay.origin, localRay.direction, a, b, c, out float localDistance) || localDistance < 0f)
+                {
+                    continue;
+                }
+
+                Vector3 candidateLocalPoint = localRay.origin + (localRay.direction * localDistance);
+                Vector3 candidateWorldPoint = transform.TransformPoint(candidateLocalPoint);
+                float candidateWorldDistance = Vector3.Dot(candidateWorldPoint - worldRay.origin, worldRay.direction);
+                if (candidateWorldDistance < 0f || candidateWorldDistance > maxDistance || candidateWorldDistance >= closestLocalDistance)
+                {
+                    continue;
+                }
+
+                closestLocalDistance = candidateWorldDistance;
+                hitPoint = candidateWorldPoint;
+                hitDistance = candidateWorldDistance;
+                foundHit = true;
+            }
+
+            return foundHit;
+        }
+
         private void ResolveAndRegisterWithVolume()
         {
             if (_volume == null)
