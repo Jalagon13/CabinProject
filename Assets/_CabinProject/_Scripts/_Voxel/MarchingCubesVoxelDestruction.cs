@@ -119,7 +119,8 @@ namespace CabinProject
             _densityBuffer.SetData(_densityValues);
 
             RegenerateMesh();
-            _excavationDebrisSpawner?.SpawnDebris(newlyExposedSamples, hitPointWorld);
+            List<int> debrisEligibleSamples = FilterDebrisSamplesOutsideStatues(newlyExposedSamples);
+            _excavationDebrisSpawner?.SpawnDebris(debrisEligibleSamples, hitPointWorld);
             NotifyExposureTrackers(newlyExposedSamples);
         }
 
@@ -682,6 +683,33 @@ namespace CabinProject
             return newlyExposedSamples;
         }
 
+        private List<int> FilterDebrisSamplesOutsideStatues(List<int> removedSamples)
+        {
+            List<int> debrisSamples = new List<int>();
+            if (removedSamples == null || removedSamples.Count == 0)
+            {
+                return debrisSamples;
+            }
+
+            for (int i = 0; i < removedSamples.Count; i++)
+            {
+                if (!TryGetSampleCoordinates(removedSamples[i], out Vector3Int coordinates))
+                {
+                    continue;
+                }
+
+                Vector3 worldPosition = transform.TransformPoint(GetSampleLocalPosition(coordinates.x, coordinates.y, coordinates.z));
+                if (IsPointInsideAnyTrackedStatue(worldPosition))
+                {
+                    continue;
+                }
+
+                debrisSamples.Add(removedSamples[i]);
+            }
+
+            return debrisSamples;
+        }
+
         private void RemoveFloatingFragmentsNearExcavation(Vector3 hitPointWorld, List<int> newlyExposedSamples)
         {
             if (_densityValues == null || _maxFloatingFragmentVoxelCount <= 0)
@@ -856,6 +884,26 @@ namespace CabinProject
 
             visited[regionIndex] = true;
             queue.Enqueue(regionIndex);
+        }
+
+        private bool IsPointInsideAnyTrackedStatue(Vector3 worldPoint)
+        {
+            for (int i = _exposureTrackers.Count - 1; i >= 0; i--)
+            {
+                StatueExposureTracker tracker = _exposureTrackers[i];
+                if (tracker == null)
+                {
+                    _exposureTrackers.RemoveAt(i);
+                    continue;
+                }
+
+                if (tracker.ContainsWorldPoint(worldPoint))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private Vector3 EstimateDensityGradient(Vector3 localPosition)

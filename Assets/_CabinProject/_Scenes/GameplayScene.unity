@@ -3459,14 +3459,14 @@ MonoBehaviour:
   _outwardImpulse: 0.1
   _upwardImpulse: 0.1
   _randomImpulse: 0.01
-  _maxDepenetrationVelocity: 1
-  _linearDamping: 3.5
+  _maxDepenetrationVelocity: 0.7
+  _linearDamping: 4
   _angularDamping: 4.5
   _sleepThreshold: 0.1
   _settleDelay: 0.1
-  _settleLinearVelocityThreshold: 0.3
+  _settleLinearVelocityThreshold: 0.325
   _settleAngularVelocityThreshold: 0.7
-  _settleCheckDuration: 0.1
+  _settleCheckDuration: 0.075
   _selfCollisionIgnoreDuration: 0.15
   _debrisColliderMaterial: {fileID: 13400000, guid: e8dbdd9076f224fcbb3fbce83628c278, type: 2}
   _pieceLifetime: 6

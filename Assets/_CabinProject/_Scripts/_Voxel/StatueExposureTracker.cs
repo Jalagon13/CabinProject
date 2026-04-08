@@ -145,6 +145,24 @@ namespace CabinProject
             return foundHit;
         }
 
+        public bool ContainsWorldPoint(Vector3 worldPoint)
+        {
+            if (_statueMesh == null)
+            {
+                return false;
+            }
+
+            Vector3[] vertices = _statueMesh.vertices;
+            int[] triangles = _statueMesh.triangles;
+            if (vertices == null || triangles == null || triangles.Length < 3)
+            {
+                return false;
+            }
+
+            Vector3 localPoint = transform.InverseTransformPoint(worldPoint);
+            return GetSignedDistanceToMesh(localPoint, vertices, triangles) < 0f;
+        }
+
         private void ResolveAndRegisterWithVolume()
         {
             if (_volume == null)
