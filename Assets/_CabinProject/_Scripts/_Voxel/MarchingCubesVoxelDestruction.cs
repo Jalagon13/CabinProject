@@ -7,6 +7,7 @@ using UnityEngine.Rendering;
 namespace CabinProject
 {
     [RequireComponent(typeof(Transform))]
+    [RequireComponent(typeof(ExcavationDebrisSpawner))]
     public class MarchingCubesVoxelDestruction : MonoBehaviour
     {
         private const float RaycastEpsilon = 0.00001f;
@@ -48,6 +49,7 @@ namespace CabinProject
         private MeshRenderer _runtimeMeshRenderer;
         private MeshCollider _runtimeMeshCollider;
         private Mesh _runtimeMesh;
+        private ExcavationDebrisSpawner _excavationDebrisSpawner;
 
         private int _gridResolution = 32;
         private float _excavationRadius = 0.5f;
@@ -83,6 +85,7 @@ namespace CabinProject
             _sourceMeshFilter = GetComponent<MeshFilter>();
             _sourceMeshRenderer = GetComponent<MeshRenderer>();
             _sourceColliders = GetComponents<Collider>();
+            _excavationDebrisSpawner = GetComponent<ExcavationDebrisSpawner>();
             _sourceMeshAsset = _sourceMeshFilter != null ? _sourceMeshFilter.sharedMesh : null;
             _sourceVertices = _sourceMeshAsset != null ? _sourceMeshAsset.vertices : null;
             _sourceTriangles = _sourceMeshAsset != null ? _sourceMeshAsset.triangles : null;
@@ -116,6 +119,7 @@ namespace CabinProject
             _densityBuffer.SetData(_densityValues);
 
             RegenerateMesh();
+            _excavationDebrisSpawner?.SpawnDebris(newlyExposedSamples, hitPointWorld);
             NotifyExposureTrackers(newlyExposedSamples);
         }
 
