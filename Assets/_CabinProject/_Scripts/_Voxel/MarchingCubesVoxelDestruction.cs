@@ -52,6 +52,7 @@ namespace CabinProject
         private int _gridResolution = 32;
         private float _excavationRadius = 0.5f;
         private float _isoValue = 0.5f;
+        [SerializeField] private float _generatedUvScale = 1f;
         private ComputeShader _computeShader;
 
         private ComputeBuffer _densityBuffer;
@@ -277,6 +278,8 @@ namespace CabinProject
             _runtimeMesh.triangles = indices;
             _runtimeMesh.RecalculateBounds();
             _runtimeMesh.RecalculateNormals();
+            _runtimeMesh.uv = GenerateProjectedUvs(_runtimeMesh.vertices, _runtimeMesh.normals);
+            _runtimeMesh.RecalculateTangents();
 
             _runtimeMeshCollider.sharedMesh = null;
             _runtimeMeshCollider.sharedMesh = _runtimeMesh;
@@ -437,6 +440,34 @@ namespace CabinProject
             float barycentricV = vb * denominator;
             float barycentricW = vc * denominator;
             return a + (ab * barycentricV) + (ac * barycentricW);
+        }
+
+        private Vector2[] GenerateProjectedUvs(Vector3[] vertices, Vector3[] normals)
+        {
+            Vector2[] uvs = new Vector2[vertices.Length];
+            float uvScale = Mathf.Max(0.01f, _generatedUvScale);
+
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 normal = normals != null && i < normals.Length ? normals[i] : Vector3.up;
+                Vector3 absoluteNormal = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+                Vector3 vertex = vertices[i];
+
+                if (absoluteNormal.y >= absoluteNormal.x && absoluteNormal.y >= absoluteNormal.z)
+                {
+                    uvs[i] = new Vector2(vertex.x, vertex.z) * uvScale;
+                }
+                else if (absoluteNormal.x >= absoluteNormal.z)
+                {
+                    uvs[i] = new Vector2(vertex.z, vertex.y) * uvScale;
+                }
+                else
+                {
+                    uvs[i] = new Vector2(vertex.x, vertex.y) * uvScale;
+                }
+            }
+
+            return uvs;
         }
 
         private void OnDestroy()
