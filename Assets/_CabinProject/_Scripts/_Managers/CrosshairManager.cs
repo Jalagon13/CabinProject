@@ -29,7 +29,6 @@ namespace CabinProject
         [SerializeField] private ComputeShader _computeShader;
         public ComputeShader ComputeShader => _computeShader;
         
-        [SerializeField] private ParticleSystem _stoneHitPS;
         [SerializeField] private ParticleSystem _stoneHitSmokePS;
 
         
@@ -139,7 +138,6 @@ namespace CabinProject
                         Vector3 excavationPoint = voxelTarget.GetExcavationPoint(ray, hit.point, hit.distance);
                         voxelTarget.Excavate(excavationPoint);
                         AudioManager.Instance.PlayOneShot(FMODEvents.Instance.StoneHitSFX, excavationPoint);
-                        Instantiate(_stoneHitPS, excavationPoint, Quaternion.identity);
                         Instantiate(_stoneHitSmokePS, excavationPoint, Quaternion.identity);
                         // Debug.Log($"Excavated {voxelTarget.name} at {hit.point}.");
                         _attackTimer?.Reset();
