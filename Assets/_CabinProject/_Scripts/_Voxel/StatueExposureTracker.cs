@@ -152,8 +152,8 @@ namespace CabinProject
                         Vector3 sampleWorld = _volume.transform.TransformPoint(sampleLocal);
                         Vector3 sampleInStatueLocal = transform.InverseTransformPoint(sampleWorld);
 
-                        float minDistanceSquared = GetMinDistanceSquaredToMesh(sampleInStatueLocal, vertices, triangles);
-                        if (minDistanceSquared > shellDistanceLocal * shellDistanceLocal)
+                        float signedDistance = GetSignedDistanceToMesh(sampleInStatueLocal, vertices, triangles);
+                        if (signedDistance < 0f || signedDistance > shellDistanceLocal)
                         {
                             continue;
                         }
@@ -249,8 +249,11 @@ namespace CabinProject
             return new Bounds(center, worldExtents * 2f);
         }
 
-        private static float GetMinDistanceSquaredToMesh(Vector3 point, Vector3[] vertices, int[] triangles)
+        private static float GetSignedDistanceToMesh(Vector3 point, Vector3[] vertices, int[] triangles)
         {
+            const float raycastEpsilon = 0.00001f;
+            Vector3 rayDirection = new Vector3(1f, 0.371f, 0.173f).normalized;
+            int intersectionCount = 0;
             float minDistanceSquared = float.PositiveInfinity;
 
             for (int i = 0; i < triangles.Length; i += 3)
@@ -264,9 +267,52 @@ namespace CabinProject
                 {
                     minDistanceSquared = distanceSquared;
                 }
+
+                if (RayIntersectsTriangle(point, rayDirection, a, b, c, out float hitDistance) && hitDistance > raycastEpsilon)
+                {
+                    intersectionCount++;
+                }
             }
 
-            return minDistanceSquared;
+            float distance = Mathf.Sqrt(minDistanceSquared);
+            bool isInside = (intersectionCount & 1) == 1;
+            return isInside ? -distance : distance;
+        }
+
+        private static bool RayIntersectsTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c, out float distance)
+        {
+            const float raycastEpsilon = 0.00001f;
+
+            Vector3 edgeAB = b - a;
+            Vector3 edgeAC = c - a;
+            Vector3 pVector = Vector3.Cross(direction, edgeAC);
+            float determinant = Vector3.Dot(edgeAB, pVector);
+
+            if (Mathf.Abs(determinant) < raycastEpsilon)
+            {
+                distance = 0f;
+                return false;
+            }
+
+            float inverseDeterminant = 1f / determinant;
+            Vector3 tVector = origin - a;
+            float u = Vector3.Dot(tVector, pVector) * inverseDeterminant;
+            if (u < 0f || u > 1f)
+            {
+                distance = 0f;
+                return false;
+            }
+
+            Vector3 qVector = Vector3.Cross(tVector, edgeAB);
+            float v = Vector3.Dot(direction, qVector) * inverseDeterminant;
+            if (v < 0f || u + v > 1f)
+            {
+                distance = 0f;
+                return false;
+            }
+
+            distance = Vector3.Dot(edgeAC, qVector) * inverseDeterminant;
+            return distance >= 0f;
         }
 
         private static Vector3 ClosestPointOnTriangle(Vector3 point, Vector3 a, Vector3 b, Vector3 c)
