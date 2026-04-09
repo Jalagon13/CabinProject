@@ -55,6 +55,20 @@ namespace CabinProject
         [SerializeField] private float _selfCollisionIgnoreDuration = 0.12f;
         [SerializeField] private PhysicsMaterial _debrisColliderMaterial;
 
+        [Header("Collision Audio")]
+        [SerializeField] private bool _collisionAudioEnabled = true;
+        [SerializeField] private float _audioSpawnGraceTime = 0.18f;
+        [SerializeField] private float _audioMinimumImpactSpeed = 0.4f;
+        [SerializeField] private float _audioMinimumImpactImpulse = 0.08f;
+        [SerializeField] private float _audioHeavyImpactImpulse = 1.25f;
+        [SerializeField] private float _audioInitialSilenceDuration = 0.22f;
+        [SerializeField] private float _audioRetriggerCooldown = 0.14f;
+        [SerializeField] private float _audioGlobalRetriggerCooldown = 0.035f;
+        [SerializeField] private float _audioStrongerHitRetriggerMargin = 0.18f;
+        [SerializeField] private float _audioMaxVolumeMultiplier = 1f;
+        [SerializeField] private float _audioReferenceMinMass = 0.05f;
+        [SerializeField] private float _audioReferenceMaxMass = 1.25f;
+
         [Header("Cleanup")]
         [SerializeField] private float _pieceLifetime = 2.5f;
         [SerializeField, Range(0f, 1f)] private float _shrinkStartNormalized = 0.7f;
@@ -498,7 +512,18 @@ namespace CabinProject
                 _settleDelay,
                 _settleLinearVelocityThreshold,
                 _settleAngularVelocityThreshold,
-                _settleCheckDuration);
+                _settleCheckDuration,
+                _collisionAudioEnabled,
+                _audioSpawnGraceTime,
+                _audioMinimumImpactSpeed,
+                _audioMinimumImpactImpulse,
+                _audioHeavyImpactImpulse,
+                _audioInitialSilenceDuration,
+                _audioRetriggerCooldown,
+                _audioGlobalRetriggerCooldown,
+                _audioStrongerHitRetriggerMargin,
+                _audioMaxVolumeMultiplier,
+                NormalizeDebrisSize(rigidbody.mass));
 
             Vector3 impulseDirection = _volume.GetExcavationSurfaceNormal(excavationPointWorld);
             if (impulseDirection.sqrMagnitude < 0.0001f)
@@ -519,6 +544,12 @@ namespace CabinProject
                 + (Random.insideUnitSphere * _randomImpulse);
             rigidbody.AddForce(impulse, ForceMode.Impulse);
             return meshCollider;
+        }
+
+        private float NormalizeDebrisSize(float mass)
+        {
+            float maxMass = Mathf.Max(_audioReferenceMinMass + 0.0001f, _audioReferenceMaxMass);
+            return Mathf.Clamp01(Mathf.InverseLerp(_audioReferenceMinMass, maxMass, mass));
         }
 
         private Mesh BuildPieceMesh(List<Vector3Int> pieceVoxels, HashSet<Vector3Int> voxelSet, Vector3 worldCenter)

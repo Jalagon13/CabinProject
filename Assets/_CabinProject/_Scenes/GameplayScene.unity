@@ -3469,6 +3469,18 @@ MonoBehaviour:
   _settleCheckDuration: 0.075
   _selfCollisionIgnoreDuration: 0.15
   _debrisColliderMaterial: {fileID: 13400000, guid: e8dbdd9076f224fcbb3fbce83628c278, type: 2}
+  _collisionAudioEnabled: 1
+  _audioSpawnGraceTime: 0.15
+  _audioMinimumImpactSpeed: 0.2
+  _audioMinimumImpactImpulse: 0.08
+  _audioHeavyImpactImpulse: 1.25
+  _audioInitialSilenceDuration: 0.2
+  _audioRetriggerCooldown: 0.15
+  _audioGlobalRetriggerCooldown: 0.041
+  _audioStrongerHitRetriggerMargin: 0.1
+  _audioMaxVolumeMultiplier: 1
+  _audioReferenceMinMass: 0.05
+  _audioReferenceMaxMass: 1.25
   _pieceLifetime: 6
   _shrinkStartNormalized: 0.8
   _debrisParentOverride: {fileID: 0}
@@ -3956,6 +3968,13 @@ MonoBehaviour:
       Data3: -268667255
       Data4: -413896011
     Path: event:/StoneHitSFX
+  <DebrisCollisionSFX>k__BackingField:
+    Guid:
+      Data1: -81700890
+      Data2: 1176016913
+      Data3: -2097698645
+      Data4: -92156383
+    Path: event:/DebrisTumbleSFX
 --- !u!114 &1946351270
 MonoBehaviour:
   m_ObjectHideFlags: 0

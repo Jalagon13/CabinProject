@@ -17,6 +17,7 @@ namespace CabinProject
 
         [field: Header("Mining SFX")]
         [field: SerializeField] public EventReference StoneHitSFX { get; private set; }
+        [field: SerializeField] public EventReference DebrisCollisionSFX { get; private set; }
         
         
 
