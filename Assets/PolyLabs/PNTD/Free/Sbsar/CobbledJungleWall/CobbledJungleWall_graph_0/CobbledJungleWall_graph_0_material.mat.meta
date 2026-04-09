@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: ddbf5d29b04f64ccf82520d80c1b1115
+labels:
+- sb_fb7646016f4948218725978e0c728f06
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 245695
+  packageName: PNTD Free Stylized Materials and Substances
+  packageVersion: 1.0
+  assetPath: Assets/PolyLabs/PNTD/Free/Sbsar/CobbledJungleWall/CobbledJungleWall_graph_0/CobbledJungleWall_graph_0_material.mat
+  uploadId: 559362

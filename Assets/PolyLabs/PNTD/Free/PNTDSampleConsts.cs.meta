@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 5e8b06b84d6434acaac79e8f4babadf9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 245695
+  packageName: PNTD Free Stylized Materials and Substances
+  packageVersion: 1.0
+  assetPath: Assets/PolyLabs/PNTD/Free/PNTDSampleConsts.cs
+  uploadId: 559362

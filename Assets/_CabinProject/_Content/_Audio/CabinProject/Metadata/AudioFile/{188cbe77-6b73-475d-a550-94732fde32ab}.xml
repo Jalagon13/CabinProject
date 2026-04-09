@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.02.00">
+	<object class="AudioFile" id="{188cbe77-6b73-475d-a550-94732fde32ab}">
+		<property name="assetPath">
+			<value>StoneHitSFX2.wav</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>1.350625</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{e9fd05d3-587a-42ab-9e4b-4a5ed6cc0c8d}</destination>
+		</relationship>
+	</object>
+</objects>

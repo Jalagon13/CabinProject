@@ -35,6 +35,12 @@ namespace CabinProject
         private bool _settled;
         private readonly List<(string Name, float Value)> _audioParameters = new List<(string Name, float Value)>(2);
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticAudioState()
+        {
+            _lastGlobalAudioPlayTime = float.NegativeInfinity;
+        }
+
         public void Initialize(
             float lifetime,
             float shrinkStartNormalized,
@@ -169,6 +175,12 @@ namespace CabinProject
             }
 
             float timeSinceGlobalPlay = Time.time - _lastGlobalAudioPlayTime;
+            if (Time.time < _lastGlobalAudioPlayTime)
+            {
+                _lastGlobalAudioPlayTime = float.NegativeInfinity;
+                timeSinceGlobalPlay = float.PositiveInfinity;
+            }
+
             if (timeSinceGlobalPlay < _audioGlobalRetriggerCooldown)
             {
                 return;

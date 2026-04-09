@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 620d37a2258614a3b947a656a7dd4d84
+labels:
+- sb_7ea1059945354ad5bc58dee6cf7ff59f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 245695
+  packageName: PNTD Free Stylized Materials and Substances
+  packageVersion: 1.0
+  assetPath: Assets/PolyLabs/PNTD/Free/Sbsar/BeachSand/BeachSand_graph_0/BeachSand_graph_0_material.mat
+  uploadId: 559362

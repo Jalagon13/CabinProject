@@ -3137,7 +3137,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b486af754e4bc4947a947dc47001c59d, type: 2}
+  - {fileID: 2100000, guid: 3537ebfdcda624bc09212660316753f9, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3451,14 +3451,14 @@ MonoBehaviour:
   _targetVoxelsPerPiece: 10
   _minimumVoxelsPerPiece: 3
   _pieceMarchingCubesPadding: 1
-  _surfaceOffset: 0.01
-  _spawnJitter: 0.005
+  _surfaceOffset: 0
+  _spawnJitter: 0
   _massPerVoxel: 0.08
   _minimumMass: 0.075
   _maximumMass: 3
-  _outwardImpulse: 0.1
-  _upwardImpulse: 0.1
-  _randomImpulse: 0.01
+  _outwardImpulse: 0
+  _upwardImpulse: 0
+  _randomImpulse: 0
   _maxDepenetrationVelocity: 0.7
   _linearDamping: 4
   _angularDamping: 4.5
@@ -3481,8 +3481,8 @@ MonoBehaviour:
   _audioMaxVolumeMultiplier: 1
   _audioReferenceMinMass: 0.05
   _audioReferenceMaxMass: 1.25
-  _pieceLifetime: 6
-  _shrinkStartNormalized: 0.8
+  _pieceLifetime: 60
+  _shrinkStartNormalized: 0.95
   _debrisParentOverride: {fileID: 0}
   _preferLocalManagersParent: 1
 --- !u!43 &1614226621
@@ -3963,10 +3963,10 @@ MonoBehaviour:
     Path: 
   <StoneHitSFX>k__BackingField:
     Guid:
-      Data1: 1755416090
-      Data2: 1152976650
-      Data3: -268667255
-      Data4: -413896011
+      Data1: 402558997
+      Data2: 1118626189
+      Data3: 989507768
+      Data4: -772987521
     Path: event:/StoneHitSFX
   <DebrisCollisionSFX>k__BackingField:
     Guid:
