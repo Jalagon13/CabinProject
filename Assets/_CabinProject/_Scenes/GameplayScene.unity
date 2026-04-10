@@ -3489,7 +3489,7 @@ MonoBehaviour:
   _audioMaxVolumeMultiplier: 1
   _audioReferenceMinMass: 0.05
   _audioReferenceMaxMass: 1.25
-  _pieceLifetime: 60
+  _pieceLifetime: 90
   _shrinkStartNormalized: 0.95
   _debrisParentOverride: {fileID: 0}
   _preferLocalManagersParent: 1
@@ -3863,6 +3863,7 @@ GameObject:
   - component: {fileID: 1946351268}
   - component: {fileID: 1946351270}
   - component: {fileID: 1946351271}
+  - component: {fileID: 1946351272}
   m_Layer: 0
   m_Name: LOCAL_MANAGERS
   m_TagString: Untagged
@@ -4008,6 +4009,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f391503e01c2e4f23a0be73a770fecfd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.MoneyManager
+--- !u!114 &1946351272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1946351264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1718ce35ab454f3c9e5c7adf78e86154, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CabinProject.DebrisPickupManager
+  _useRightMouseHold: 1
+  _cameraOverride: {fileID: 330585545}
+  _anchorDistance: 1.65
+  _pickupRadius: 0.75
+  _pullAcceleration: 80
+  _maxPullSpeed: 7
+  _velocityDamping: 8
+  _snapDistance: 0.1
+  _snapLerpSpeed: 14
+  _debrisLayers:
+    serializedVersion: 2
+    m_Bits: 63
+  _triggerInteraction: 1
+  _maxColliders: 256
 --- !u!1 &2000489644
 GameObject:
   m_ObjectHideFlags: 0

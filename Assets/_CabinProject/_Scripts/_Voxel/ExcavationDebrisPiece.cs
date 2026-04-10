@@ -33,6 +33,8 @@ namespace CabinProject
         private float _lastImpactStrengthNormalized;
         private float _lastAudioPlayTime = float.NegativeInfinity;
         private bool _settled;
+        private bool _isPotential;
+        private bool _isActive;
         private readonly List<(string Name, float Value)> _audioParameters = new List<(string Name, float Value)>(2);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -80,10 +82,71 @@ namespace CabinProject
             _audioStrongerHitRetriggerMargin = Mathf.Max(0f, audioStrongerHitRetriggerMargin);
             _audioMaxVolumeMultiplier = Mathf.Max(0f, audioMaxVolumeMultiplier);
             _audioDebrisSizeNormalized = Mathf.Clamp01(audioDebrisSizeNormalized);
+            _isPotential = false;
+            _isActive = true;
+        }
+
+        public void SetPotentialState(bool isPotential)
+        {
+            _isPotential = isPotential;
+            _isActive = !isPotential;
+
+            if (_rigidbody != null)
+            {
+                _rigidbody.isKinematic = isPotential;
+                _rigidbody.detectCollisions = !isPotential;
+                _rigidbody.linearVelocity = Vector3.zero;
+                _rigidbody.angularVelocity = Vector3.zero;
+                if (isPotential)
+                {
+                    _rigidbody.Sleep();
+                }
+            }
+
+            Collider collider = GetComponent<Collider>();
+            if (collider != null)
+            {
+                collider.enabled = !isPotential;
+            }
+        }
+
+        public void Activate(Vector3 impulse)
+        {
+            if (!_isPotential)
+            {
+                return;
+            }
+
+            _isPotential = false;
+            _isActive = true;
+            _settled = false;
+            _settleTimer = 0f;
+
+            if (_rigidbody != null)
+            {
+                _rigidbody.isKinematic = false;
+                _rigidbody.detectCollisions = true;
+                _rigidbody.WakeUp();
+                if (impulse.sqrMagnitude > 0f)
+                {
+                    _rigidbody.AddForce(impulse, ForceMode.Impulse);
+                }
+            }
+
+            Collider collider = GetComponent<Collider>();
+            if (collider != null)
+            {
+                collider.enabled = true;
+            }
         }
 
         private void Update()
         {
+            if (!_isActive)
+            {
+                return;
+            }
+
             _elapsed += Time.deltaTime;
             if (_elapsed >= _lifetime)
             {
