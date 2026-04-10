@@ -49,12 +49,21 @@ namespace CabinProject
         private MeshRenderer _runtimeMeshRenderer;
         private MeshCollider _runtimeMeshCollider;
         private Mesh _runtimeMesh;
+        private Mesh _runtimeColliderMesh;
         private ExcavationDebrisSpawner _excavationDebrisSpawner;
 
         private int _gridResolution = 32;
         private float _excavationRadius = 0.5f;
         private float _isoValue = 0.5f;
         [SerializeField] private float _generatedUvScale = 1f;
+        [SerializeField] private bool _enableFieldNoise = true;
+        [SerializeField] private float _fieldNoiseFrequency = 2f;
+        [SerializeField] private float _fieldNoiseAmplitude = 0.06f;
+        [SerializeField] private int _fieldNoiseOctaves = 2;
+        [SerializeField] private int _fieldNoiseSeed = 1337;
+        [SerializeField] private bool _enableRenderDisplacement = false;
+        [SerializeField] private float _renderDisplacementAmplitude = 0.05f;
+        [SerializeField] private float _renderDisplacementFrequency = 3f;
         [SerializeField] private float _floatingFragmentCleanupRadiusMultiplier = 2f;
         [SerializeField] private int _maxFloatingFragmentVoxelCount = 8;
         private ComputeShader _computeShader;
@@ -147,6 +156,11 @@ namespace CabinProject
             _excavateKernelIndex = _computeShader.FindKernel("Excavate");
             _gridResolution = Mathf.Max(3, _gridResolution);
             _pointResolution = _gridResolution + 1;
+            _fieldNoiseFrequency = Mathf.Max(0.01f, _fieldNoiseFrequency);
+            _fieldNoiseAmplitude = Mathf.Max(0f, _fieldNoiseAmplitude);
+            _fieldNoiseOctaves = Mathf.Clamp(_fieldNoiseOctaves, 1, 4);
+            _renderDisplacementFrequency = Mathf.Max(0.01f, _renderDisplacementFrequency);
+            _renderDisplacementAmplitude = Mathf.Clamp(_renderDisplacementAmplitude, 0f, 0.15f);
             _sourceLocalBounds = _sourceMeshFilter.sharedMesh.bounds;
             _cellSize = CalculateCellSize(_sourceLocalBounds.size, _gridResolution);
             _fieldMinLocal = _sourceLocalBounds.min - _cellSize;
@@ -189,6 +203,13 @@ namespace CabinProject
             };
             _runtimeMesh.MarkDynamic();
             _runtimeMeshFilter.sharedMesh = _runtimeMesh;
+
+            _runtimeColliderMesh = new Mesh
+            {
+                name = $"{name}_MarchingCubesColliderMesh",
+                indexFormat = IndexFormat.UInt32
+            };
+            _runtimeColliderMesh.MarkDynamic();
         }
 
         private void CreateBuffers()
@@ -216,7 +237,8 @@ namespace CabinProject
                         int index = ToIndex(x, y, z, _pointResolution);
                         Vector3 localPosition = GetLocalPosition(x, y, z);
                         float signedDistance = CalculateSignedDistanceToMesh(localPosition);
-                        _densityValues[index] = Mathf.Clamp01(0.5f - (signedDistance / surfaceBand));
+                        float baseDensity = Mathf.Clamp01(0.5f - (signedDistance / surfaceBand));
+                        _densityValues[index] = ApplyFieldNoiseToDensity(baseDensity, localPosition);
                     }
                 }
             }
@@ -268,19 +290,31 @@ namespace CabinProject
             _triangleBuffer.GetData(gpuTriangles, 0, 0, triangleCount);
 
             Vector3[] vertices = new Vector3[triangleCount * 3];
+            Vector3[] colliderVertices = new Vector3[triangleCount * 3];
             int[] indices = new int[triangleCount * 3];
 
             for (int i = 0; i < triangleCount; i++)
             {
                 int vertexIndex = i * 3;
-                vertices[vertexIndex] = gpuTriangles[i].VertexA;
+                Vector3 vertexA = gpuTriangles[i].VertexA;
+                Vector3 vertexB = gpuTriangles[i].VertexB;
+                Vector3 vertexC = gpuTriangles[i].VertexC;
+                vertices[vertexIndex] = vertexA;
                 // Flip winding so the generated surface faces outward in Unity.
-                vertices[vertexIndex + 1] = gpuTriangles[i].VertexC;
-                vertices[vertexIndex + 2] = gpuTriangles[i].VertexB;
+                vertices[vertexIndex + 1] = vertexC;
+                vertices[vertexIndex + 2] = vertexB;
+                colliderVertices[vertexIndex] = vertexA;
+                colliderVertices[vertexIndex + 1] = vertexC;
+                colliderVertices[vertexIndex + 2] = vertexB;
 
                 indices[vertexIndex] = vertexIndex;
                 indices[vertexIndex + 1] = vertexIndex + 1;
                 indices[vertexIndex + 2] = vertexIndex + 2;
+            }
+
+            if (_enableRenderDisplacement)
+            {
+                ApplyRenderDisplacement(vertices);
             }
 
             _runtimeMesh.vertices = vertices;
@@ -290,8 +324,13 @@ namespace CabinProject
             _runtimeMesh.uv = GenerateProjectedUvs(_runtimeMesh.vertices, _runtimeMesh.normals);
             _runtimeMesh.RecalculateTangents();
 
+            _runtimeColliderMesh.Clear();
+            _runtimeColliderMesh.vertices = colliderVertices;
+            _runtimeColliderMesh.triangles = indices;
+            _runtimeColliderMesh.RecalculateBounds();
+
             _runtimeMeshCollider.sharedMesh = null;
-            _runtimeMeshCollider.sharedMesh = _runtimeMesh;
+            _runtimeMeshCollider.sharedMesh = _runtimeColliderMesh;
         }
 
         private void UpdateSharedShaderParameters()
@@ -490,6 +529,11 @@ namespace CabinProject
                 Destroy(_runtimeMesh);
             }
 
+            if (_runtimeColliderMesh != null)
+            {
+                Destroy(_runtimeColliderMesh);
+            }
+
             if (_runtimeMeshObject != null)
             {
                 Destroy(_runtimeMeshObject);
@@ -670,7 +714,7 @@ namespace CabinProject
                         float normalizedDistance = Mathf.Clamp01(distanceToHit / _excavationRadius);
                         float excavatedDensity = normalizedDistance;
                         float newDensity = Mathf.Min(previousDensity, excavatedDensity);
-                        _densityValues[index] = newDensity;
+                        _densityValues[index] = ApplyFieldNoiseToDensity(newDensity, localPosition);
 
                         if (previousDensity >= _isoValue && newDensity < _isoValue)
                         {
@@ -814,7 +858,8 @@ namespace CabinProject
                                 continue;
                             }
 
-                            _densityValues[flatIndex] = 0f;
+                            Vector3 localPosition = GetLocalPosition(voxelX, voxelY, voxelZ);
+                            _densityValues[flatIndex] = ApplyFieldNoiseToDensity(0f, localPosition);
                             newlyExposedSamples?.Add(flatIndex);
                         }
                     }
@@ -959,6 +1004,82 @@ namespace CabinProject
             float c0 = Mathf.Lerp(c00, c10, ty);
             float c1 = Mathf.Lerp(c01, c11, ty);
             return Mathf.Lerp(c0, c1, tz);
+        }
+
+        private float ApplyFieldNoiseToDensity(float baseDensity, Vector3 localPosition)
+        {
+            if (!_enableFieldNoise || _fieldNoiseAmplitude <= 0f)
+            {
+                return Mathf.Clamp01(baseDensity);
+            }
+
+            float surfaceDistance = Mathf.Abs(baseDensity - _isoValue);
+            float attenuation = 1f - Mathf.Clamp01(surfaceDistance / Mathf.Max(_fieldNoiseAmplitude * 2f, 0.0001f));
+            if (attenuation <= 0f)
+            {
+                return Mathf.Clamp01(baseDensity);
+            }
+
+            float noise = SampleFractalNoise(localPosition, _fieldNoiseFrequency, _fieldNoiseOctaves, _fieldNoiseSeed);
+            float perturbedDensity = baseDensity + (noise * _fieldNoiseAmplitude * attenuation);
+            return Mathf.Clamp01(perturbedDensity);
+        }
+
+        private void ApplyRenderDisplacement(Vector3[] vertices)
+        {
+            if (vertices == null || vertices.Length == 0)
+            {
+                return;
+            }
+
+            float amplitude = Mathf.Min(_renderDisplacementAmplitude, MaxCellSize * 0.15f);
+            if (amplitude <= 0f)
+            {
+                return;
+            }
+
+            float frequency = Mathf.Max(0.01f, _renderDisplacementFrequency);
+            int seed = _fieldNoiseSeed ^ 0x5A5A5A5A;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 vertex = vertices[i];
+                float nx = SampleFractalNoise(vertex + new Vector3(19.37f, 0f, 0f), frequency, 2, seed + 11);
+                float ny = SampleFractalNoise(vertex + new Vector3(0f, 47.11f, 0f), frequency, 2, seed + 29);
+                float nz = SampleFractalNoise(vertex + new Vector3(0f, 0f, 73.53f), frequency, 2, seed + 47);
+                Vector3 direction = new Vector3(nx, ny, nz);
+                float magnitude = direction.magnitude;
+                if (magnitude <= 0.00001f)
+                {
+                    continue;
+                }
+
+                direction /= magnitude;
+                vertices[i] = vertex + (direction * amplitude * 0.5f);
+            }
+        }
+
+        private static float SampleFractalNoise(Vector3 position, float frequency, int octaves, int seed)
+        {
+            float sum = 0f;
+            float amplitude = 1f;
+            float totalAmplitude = 0f;
+            float currentFrequency = Mathf.Max(0.0001f, frequency);
+
+            for (int octave = 0; octave < octaves; octave++)
+            {
+                float octaveSeed = seed * (1f + (octave * 0.731f));
+                Vector3 p = position * currentFrequency + new Vector3(octaveSeed, octaveSeed * 1.7f, octaveSeed * 2.3f);
+                float xy = Mathf.PerlinNoise(p.x, p.y);
+                float yz = Mathf.PerlinNoise(p.y, p.z);
+                float zx = Mathf.PerlinNoise(p.z, p.x);
+                float averaged = ((xy + yz + zx) / 3f) * 2f - 1f;
+                sum += averaged * amplitude;
+                totalAmplitude += amplitude;
+                amplitude *= 0.5f;
+                currentFrequency *= 2f;
+            }
+
+            return totalAmplitude > 0f ? sum / totalAmplitude : 0f;
         }
 
         private void NotifyExposureTrackers(List<int> newlyExposedSamples)

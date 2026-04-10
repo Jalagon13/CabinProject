@@ -3137,7 +3137,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3537ebfdcda624bc09212660316753f9, type: 2}
+  - {fileID: 2100000, guid: 481e7681cab314c598fa86b930794e52, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3431,6 +3431,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CabinProject.MarchingCubesVoxelDestruction
   _generatedUvScale: 1
+  _enableFieldNoise: 1
+  _fieldNoiseFrequency: 6
+  _fieldNoiseAmplitude: 0.24
+  _fieldNoiseOctaves: 3
+  _fieldNoiseSeed: 1337
+  _enableRenderDisplacement: 0
+  _renderDisplacementAmplitude: 0.05
+  _renderDisplacementFrequency: 2
   _floatingFragmentCleanupRadiusMultiplier: 2
   _maxFloatingFragmentVoxelCount: 10
 --- !u!114 &1600222266
@@ -3454,8 +3462,8 @@ MonoBehaviour:
   _surfaceOffset: 0
   _spawnJitter: 0
   _massPerVoxel: 0.08
-  _minimumMass: 0.075
-  _maximumMass: 3
+  _minimumMass: 0.1
+  _maximumMass: 6
   _outwardImpulse: 0
   _upwardImpulse: 0
   _randomImpulse: 0
@@ -3963,10 +3971,10 @@ MonoBehaviour:
     Path: 
   <StoneHitSFX>k__BackingField:
     Guid:
-      Data1: 402558997
-      Data2: 1118626189
-      Data3: 989507768
-      Data4: -772987521
+      Data1: -1092713393
+      Data2: 1278015764
+      Data3: -1181171285
+      Data4: -269370431
     Path: event:/StoneHitSFX
   <DebrisCollisionSFX>k__BackingField:
     Guid:
